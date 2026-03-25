@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="description" content="Information Visualization"/>
+        <meta name="author" content="Roberto Grosso" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Convert from HEX to RGB Color Formats</title>
+        <!-- Styles -->
+        <link rel="stylesheet" href="../../css/lectures.css">
+        <link  
+            rel="stylesheet" 
+            title="Atom One Light"
+            href="../../contrib/highlightjs/atom-one-light.min.css">
+        <!-- Scripts -->
+        <script src="../../contrib/highlightjs/highlight.min.js"></script>
+        <script id="MathJax-script" async src="../../contrib/mathjax/es5/tex-mml-svg.js"></script>
+        <script src="../../contrib/d3.min.js"></script>
+        <script>
+            hljs.highlightAll()
+        </script>
+    </head>
+    <body>
+        <div class="infovis-lecture">
+            <h1>Convert from HEX to RGB Color Formats</h1>
+            <p>
+                Web colors are commonly represented using a hex-triplet. A hex-color is specified using a string of 
+                the form <span class="code">#rrggbb</span>, where <span class="code">rr</span> is the hexadecimal 
+                representation of the red component of the color given in the interval <span class="code">[0,255]</span>, 
+                and the same for the green <span class="code">gg</span> and the blue <span class="code">bb</span> 
+                components. For example, the color magenta is given by <span class="code">#ff00ff</span>. This application 
+                implements a function to convert a hex-triplet to an rgb color. It is possible to choose different color 
+                scales. By moving the mouse over the color scale, one can see the colors' corresponding hex-code and 
+                rgb values.
+            </p>
+            <p>
+                It is possible to choose different color scales. By moving the mouse over the color scale one can see 
+                the colors' corresponding hex-code and rgb values.
+            </p>
+            <hr>
+            <div class="canvas">
+                <div id="hex-to-rgb" class="grid-container-1-column">
+                </div>
+            <script type="module" src="./hex2rgb.js"></script>
+            </div>
+            <hr>
+            <h3>The JavaScript Code</h3>
+            <div class="code" id="hl-code"></div>
+            <footer>
+                <hr>
+                <div class="impressum">
+                    <a class="impressum" href="../../impressum.html">Impressum</a> 
+                    <a class="dateschuntzerklaerung" href="../../datenschutzerklaerung.html">Datenschutzerklärung</a>
+                </div>
+            </footer>
+        </div>
+    </body>
+</html>
