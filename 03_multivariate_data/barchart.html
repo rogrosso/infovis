@@ -8,16 +8,21 @@
         <title>Bar Chart</title>
         <!-- Styles -->
         <link rel="stylesheet" href="../../css/lectures.css">
-        <link  
-            rel="stylesheet" 
-            title="Atom One Light"
-            href="../../contrib/highlightjs/atom-one-light.min.css">
         <!-- Scripts -->
-        <script src="../../contrib/highlightjs/highlight.min.js"></script>
         <script id="MathJax-script" async src="../../contrib/mathjax/es5/tex-mml-svg.js"></script>
-        <script src="../../contrib/d3.min.js"></script>
-        <script>
-            hljs.highlightAll()
+        <script type="importmap">
+            {
+                "imports": {
+                    "d3": "../contrib/d3.esm.js",
+                    "utilities": "../00_common/utilities.js",
+                    "colors": "../00_common/colors.js",
+                    "gui": "../00_common/gui.js",
+                    "draw": "../00_common/draw.js",
+                    "random": "../00_common/random.js",
+                    "binaryHeap": "../00_common/binaryHeap.js",
+                    "barchart": "./barchart.js"
+                }
+            }
         </script>
     </head>
     <body>
@@ -88,15 +93,14 @@
             </p>
             <hr>
             <div class="canvas">
-                <div id="dropdown-menu" class="drondown-menu">
-                    <label for="dropdown-menu" class="dropdown-label">Select a Dataset</label>
-                </div>
-                <div id="d3js_canvas"></div>
-            <script type="module" src="./barchart.js"></script>
+                <div id="barchart_canvas" class="grind-container-1-column"></div>
+                <script type="module">
+                    import drawBarChart from "barchart"
+                    const divElId = 'barchart_canvas'
+                    drawBarChart(divElId)
+                </script>
             </div>
             <hr>
-            <h3>The JavaScript Code</h3>
-            <div class="code" id="hl-code"></div>
             <footer>
                 <hr>
                 <div class="impressum">

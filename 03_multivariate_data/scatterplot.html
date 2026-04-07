@@ -22,16 +22,21 @@
             }
         </style>
         <link rel="stylesheet" href="../../css/lectures.css">
-        <link  
-            rel="stylesheet" 
-            title="Atom One Light"
-            href="../../contrib/highlightjs/atom-one-light.min.css">
         <!-- Scripts -->
-        <script src="../../contrib/highlightjs/highlight.min.js"></script>
         <script id="MathJax-script" async src="../../contrib/mathjax/es5/tex-mml-svg.js"></script>
-        <script src="../../contrib/d3.min.js"></script>
-        <script>
-            hljs.highlightAll()
+        <script type="importmap">
+            {
+                "imports": {
+                    "d3": "../contrib/d3.esm.js",
+                    "utilities": "../00_common/utilities.js",
+                    "colors": "../00_common/colors.js",
+                    "gui": "../00_common/gui.js",
+                    "draw": "../00_common/draw.js",
+                    "random": "../00_common/random.js",
+                    "binaryHeap": "../00_common/binaryHeap.js",
+                    "scatterplot": "./scatterplot.js"
+                }
+            }
         </script>
     </head>
     <!-- Axes with d3 -->
@@ -51,13 +56,21 @@
             </p>
             <hr>
             <div class="canvas">
-                <div class="scatter-plot-grid" id="dropdown-menu"></div>
-                <div id="d3js_canvas"></div>
-            <script type="module" src="./scatterplot.js"></script>
+                <div id="scatter-plot"></div>
+                <!--<div class="scatter-plot-grid" id="dropdown-menu"></div>
+                <div id="d3js_canvas"></div> -->
+            <script type="module">  
+                import { drawAll } from "scatterplot"
+                const url1 = "../IRIS-Dataset.csv"
+                const url2 = "../cars.json"
+                const response1 = await fetch(url1)
+                const response2 = await fetch(url2)
+                const irisText = await response1.text()//d3.csvParse(await response1.text())
+                const carsData = await response2.json()
+                drawAll("scatter-plot", irisText, carsData)
+            </script>>
             </div>
             <hr>
-            <h3>The JavaScript Code</h3>
-            <div class="code" id="hl-code"></div>
             <footer>
                 <hr>
                 <div class="impressum">

@@ -87,7 +87,7 @@ export function drawAll(divElId) {
     const divId = "divergent-scale"
     const seqId = "sequential-scale"
     const cycId = "cyclic-scale"
-    const gridObj = d3.select(divElId)
+    const gridObj = d3.select(`#${divElId}`)
     const catDiv = gridObj.append("div").attr("class", "cell").attr("id", catId)
     const divDiv = gridObj.append("div").attr("class", "cell").attr("id", divId)
     const seqDiv = gridObj.append("div").attr("class", "cell").attr("id", seqId)

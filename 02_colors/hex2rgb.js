@@ -8,7 +8,7 @@ export function drawAll(divElId) {
     // canvas
     let colSel = "BrBG"
     const colId = "color-scale"
-    const gridObj = d3.select("#hex-to-rgb")
+    const gridObj = d3.select(`#${divElId}`)
     const guiDiv = gridObj.append("div").attr("class", "cell").attr("id", colId)
 
     const width = 450

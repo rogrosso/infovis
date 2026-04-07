@@ -1,17 +1,13 @@
 
-import { genDivTooltip } from "../common/draw.js"
-import { dropdown } from "../common/gui.js"
+import * as d3 from "d3"
+import { genDivTooltip } from "draw"
+import { dropdown } from "gui"
 
 
-const url = '../data/INED-DemographicData.json' // URL to the JSON file containing the heatmap data
-drawAll(url) // Call the function to draw the heatmap
+//const url = '../data/INED-DemographicData.json' // URL to the JSON file containing the heatmap data
+//drawAll(url) // Call the function to draw the heatmap
 
-async function drawAll(url) {
-    const dData = await d3.json(url) // Fetch the JSON data
-    update(dData) // Call the function to draw the heatmap
-}
-
-function update(data) {
+export default function drawAll(divElId, data) {
         const divTooltip = genDivTooltip('categoricaltooltip-class', 'categorical_tooltip-id')
         let colorScaleSVG = null
         let heatmapSVG = null
@@ -39,7 +35,7 @@ function update(data) {
                 countires.push(obj)
             }
         }
-        draw(dData, keys)
+        draw(divElId, dData, keys)
 
         // select countries
         function selectCountries(data) {
@@ -104,23 +100,32 @@ function update(data) {
             return colorScales
         }
         // draw the heatmap
-        function draw(dData, keys) {
+        function draw(divElId, dData, keys) {
             const width = 600
             const height = 400
             const margin = { top:40, bottom: 80, left:80, right: 20}
             const iW = width - margin.left - margin.right
             const iH = height - margin.top - margin.bottom
-            const dropdwonMenuObj = d3.select('#dropdown-menu')
-            const dwDiv = dropdwonMenuObj.append('div')
+
+            // menu and canvas divs
+            const gridObj = d3.select(`#${divElId}`)
+                .attr('class', 'grid-container-1-column')
+            const divMenu = gridObj.append("div")
+                .attr("class", "heatmap-matrix-grid")
+                .attr("id", "dropdown-menu")
+            const dwDiv = divMenu.append('div')
                 .attr('class', 'cellDW')
                 .attr('id', 'dropdown_div')
                 .style('grid-column-start','1')
                 .style('grid-column-end', '1')
                 .style('margin', '1px')
-            const gridObj = d3.select('#d3js_canvas')
-            const hmDiv = gridObj.append('div')
+
+            const canvasDiv = gridObj.append("div")
+                .attr("class", "canvas-grid")
+                .attr("id", "heatmapmatrix-canvas")
+            const hmDiv = canvasDiv.append('div')
                 .attr('class', 'cell')
-                .attr('id', 'heatmapmatrix_div')
+                .attr('id', 'heatmapmatrix-div')
                 .attr('margin', '1px')
             const csDiv = gridObj.append('div')
                 .attr('class', 'cell')
@@ -400,153 +405,3 @@ function update(data) {
 
 } // draw function to create the heatmap
 
-
-// Text string to give the d3 js code to draw the heatmap
-const cText = `
-// draw the heatmap
-function draw(dData, keys) {
-    const width = 600
-    const height = 400
-    const margin = { top:40, bottom: 80, left:80, right: 20}
-    const iW = width - margin.left - margin.right
-    const iH = height - margin.top - margin.bottom
-    const dropdwonMenuObj = d3.select('#dropdown-menu')
-    const dwDiv = dropdwonMenuObj.append('div')
-        .attr('class', 'cellDW')
-        .attr('id', 'dropdown_div')
-        .style('grid-column-start','1')
-        .style('grid-column-end', '1')
-        .style('margin', '1px')
-    const gridObj = d3.select('#d3js_canvas')
-    const hmDiv = gridObj.append('div')
-        .attr('class', 'cell')
-        .attr('id', 'heatmapmatrix_div')
-        .attr('margin', '1px')
-    const csDiv = gridObj.append('div')
-        .attr('class', 'cell')
-        .attr('id', 'colorscale_div')
-    const hmSvg = hmDiv //d3.selectAll("#d3js_canvas")
-        .append('svg')
-        .attr('width',  width)
-        .attr('height', height)
-        .attr('transform', \`translate(0, \${5})\`)
-    // create dropdowns
-    dropdown({
-        divObj: dwDiv,
-        text: 'color scale: ',
-        name: 'colorScale',
-        fontSize: '0.8em',
-        selection: 'Reds',
-        keys: csKeys,
-        handler: csHandler
-    })
-    // create a color scale for each key
-    const colorScales = setColorScales(dData, csMap.get(csKeys[0]))
-    // scales and axes
-    const xScale = d3.scaleBand()
-        .range([ 0, iW ])
-        .domain(keys.slice(1))
-        .padding(0.05)
-    const yScale = d3.scaleBand()
-        .range([ iH, 0 ])
-        .domain(cKeys)
-        .padding(0.05)
-    const xAxis = d3.axisBottom(xScale).tickSize(0)
-    const yAxis = d3.axisLeft(yScale).tickSize(0)
-    hmSvg.append('g')
-        .style('font-size', 10)
-        .attr('transform', \`translate(\${margin.left}, \${iH})\`)
-        .call(xAxis)
-            .selectAll("text")  
-                .style("text-anchor", "end")
-                .attr("dx", "-.8em")
-                .attr("dy", ".15em")
-                .attr("transform", "rotate(-65)");
-    hmSvg.append('g')
-        .style('font-size', 10)
-        .attr('transform', \`translate(\${margin.left}, 0)\`)
-        .call(yAxis)
-    // remove domain    
-    hmSvg.selectAll('.domain').remove()
-    // draw the heatmap
-    const heatmap = hmSvg.append('g')
-        .attr('width', iW)
-        .attr('height', iH)
-        .attr('transform', \`translate(\${margin.left}, 0 )\`)
-    heatmapSVG = heatmap.selectAll().data(countires, function(d) { return d.Country + ':' + d.key })
-        .join(
-            enter => {
-                const gEnter = enter.append('g')
-                gEnter.append("rect")
-                    .attr("x", (d,i) => { 
-                        return xScale(d.key) 
-                    })
-                    .attr("y", (d,i) => { 
-                        return yScale(d.Country)
-                    })
-                    .attr("rx", 3)
-                    .attr("ry", 4)
-                    .attr("width", xScale.bandwidth() )
-                    .attr("height", yScale.bandwidth() )
-                    .style("fill", d => { 
-                        if (d.key === 'Group' || d.key === 'Continent') return colorScales.get(d.key)(d.value)
-                        else return colorScales.get(d.key)(d.value)
-                    })
-                    .style("stroke-width", 0.6)
-                    .style("stroke", d => {
-                        if (d.key === 'Group' || d.key === 'Continent') return 'black'
-                        else { 
-                            const col = colorScales.get(d.key)(d.value)
-                            return d3.color(col).darker(1)
-                        }
-                    })
-                    .style("opacity", 0.9)
-                    //.transition.duration(1000)
-                    gEnter
-                        .on("mouseover", function (event, elem) {
-                            const e = gEnter.nodes()
-                            const eIndex = e.indexOf(this)
-                            d3.selectAll("rect").attr(
-                                "fill-opacity",
-                                (d, i) => {
-                                    if (eIndex === i) return 1
-                                    else return 0.3
-                                }
-                            )
-                            mouseOver()
-                        })
-                        .on("mousemove", function (event, d) {
-                            mouseMove(
-                                \`Country: \${d.Country}<br>\${d.key}: \${d.value}\`,
-                                { x: event.pageX, y: event.pageY }
-                            )
-                        })
-                        .on("mouseout", function (event, d) {
-                            d3.selectAll("rect").attr(
-                                "fill-opacity",
-                                1
-                            )
-                            mouseOut()
-                        })
-                    gEnter.transition().duration(1000).attr('fill-opacity', 1)
-                return gEnter
-                //return enter
-            },
-            (update) => update, // do nothing by update
-            (exit) => exit.attr("class", (d, i) => console.log("d " + d)).remove()
-        )
-    // draw the color scales
-    colorScaleSVG = csDiv.append('svg')
-        .attr('width', 100)
-        .attr('height', height)
-        .attr('transform', \`translate(0, \${7})\`)
-    csW = 30
-    csH = height - margin.bottom - margin.top
-    continuousScale(colorScaleSVG, 'colorscale', csMap.get(csKeys[0]), csW, csH)
-}
-`
-const hlPre = d3.select('#hl-code').append('pre')
-const hlCod = hlPre.append('code')
-    .attr('class', 'language-javascript')
-    .attr('style', 'border: 1px solid #C1BAA9')
-    .text(cText)

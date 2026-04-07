@@ -1,14 +1,21 @@
-import { axes, genDivTooltip } from "../common/draw.js"
+import * as d3 from "d3"
+import { axes, genDivTooltip } from "draw"
 
-const url1 = "../data/cars.json"
-const url2 = "../data/IRIS-Dataset.csv"
-drawAll(url1, url2)
-async function drawAll(url1, url2) {
-    const response1 = await fetch(url1)
-    const cars = await response1.json()
-    const response2 = await fetch(url2)
-    const iris = await response2.text()
-    const irisData = d3.csvParse(iris)
+//const url1 = "../data/cars.json"
+//const url2 = "../data/IRIS-Dataset.csv"
+//drawAll(url1, url2)
+export function drawAll(divElId, irisText, carsData) {
+    const irisData = d3.csvParse(irisText)
+    // global variables
+    let divObject = d3.select(`#${divElId}`)
+    let gridObj = divObject.append("div").attr("class", "scatter-plot-grid")
+    let canvasDiv = divObject.append("div").attr("class", "cell").attr("id", "scatter-plot-canvas")  
+
+    //const response1 = await fetch(url1)
+    //const cars = await response1.json()
+    //const response2 = await fetch(url2)
+    //const iris = await response2.text()
+    //const irisData = d3.csvParse(iris)
     const keys = irisData.columns
     for (let e of irisData) {
         for (let k of keys) {
@@ -16,8 +23,8 @@ async function drawAll(url1, url2) {
         }
     }
     
-    cars.columns = Object.keys(cars[0])
-    const carsData = cars
+    carsData.columns = Object.keys(carsData[0])
+    //const carsData = cars
     const datasets = ["cars", "iris"]
     let tKey = "name" // for the tooltip
 
@@ -28,8 +35,7 @@ async function drawAll(url1, url2) {
     const margin = { top: 30, bottom: 55, left: 75, right: 20 }
     const innerWidth = width - margin.left - margin.right
     const innerHeight = height - margin.top - margin.bottom
-    const svg = d3
-        .selectAll("#d3js_canvas")
+    const svg = canvasDiv
         .append("svg")
         .attr("width", width)
         .attr("height", height)
@@ -53,9 +59,10 @@ async function drawAll(url1, url2) {
         guiObj.selectAll("*").remove()
         const dropdownOptions = []
         for (let k of keys) dropdownOptions.push({ key: k, value: k })
-        const gridObj = d3.select("#dropdown-menu")
+        //const gridObj = d3.select("#dropdown-menu")
 
-        const xDiv = gridObj.append("div").attr("class", "cell")
+        //const xDiv = gridObj.append("div").attr("class", "cell")
+        const xDiv = guiObj.append("div").attr("class", "cell")
         const labX = xDiv.append("label").text("x-axis: ")
         const xSelect = xDiv.append("select").on("change", function (event) {
             handler("x-axis", event.target.value)
@@ -68,7 +75,8 @@ async function drawAll(url1, url2) {
             .property("selected", (d) => d.key === xSelection)
             .text((d) => d.value)
 
-        const yDiv = gridObj.append("div").attr("class", "cell")
+        ///const yDiv = gridObj.append("div").attr("class", "cell")
+        const yDiv = guiObj.append("div").attr("class", "cell")
         const labY = yDiv.append("label").text("y-axis: ")
         const ySelect = yDiv.append("select").on("change", function (event) {
             handler("y-axis", event.target.value)
@@ -81,7 +89,8 @@ async function drawAll(url1, url2) {
             .property("selected", (d) => d.key === ySelection)
             .text((d) => d.value)
 
-        const cDiv = gridObj.append("div").attr("class", "cell")
+        ///const cDiv = gridObj.append("div").attr("class", "cell")
+        const cDiv = guiObj.append("div").attr("class", "cell")
         const labC = cDiv.append("label").text("color: ")
         const cSelect = cDiv.append("select").on("change", function (event) {
             handler("color", event.target.value)
@@ -94,7 +103,8 @@ async function drawAll(url1, url2) {
             .property("selected", (d) => d.key === cSelection)
             .text((d) => d.value)
 
-        const dDiv = gridObj.append("div").attr("class", "cell")
+        //const dDiv = gridObj.append("div").attr("class", "cell")
+        const dDiv = guiObj.append("div").attr("class", "cell")
         const labD = dDiv.append("label").text("dataset: ")
         const dSelect = dDiv.append("select").on("change", function (event) {
             handler("dataset", event.target.value)
@@ -144,7 +154,7 @@ async function drawAll(url1, url2) {
         }
         draw(props)
     }
-    const gridObj = d3.select("#dropdown-menu")
+    //const gridObj = d3.select("#dropdown-menu")
     const gProps = {
         guiObj: gridObj,
         xSelection: xSelection,
@@ -318,120 +328,4 @@ async function drawAll(url1, url2) {
         divTooltip.style("display", "none")
     }
 } // drawAll()
-const cText = `
-// the scatter plot
-function draw({
-    selection,
-    xKey,
-    yKey,
-    cKey,
-    tKey,
-    data,
-    width,
-    height,
-    xPos,
-    yPos
-}) {
-    // remove all
-    selection.selectAll('*').remove()
-    // prepare data
-    const xScale = d3.scaleLinear()
-        .domain(d3.extent(data, d => d[xKey]))
-        .range([0,width]).nice()
-    const yScale = d3.scaleLinear()
-        .domain(d3.extent(data, d => d[yKey]))
-        .range([height,0]).nice()
-    // draw axis
-    const propsAxis = {
-        selection: selection,
-        width: width,
-        height: height,
-        xScale: xScale,
-        yScale: yScale,
-        xPos: xPos,
-        yPos: yPos,
-        className: 'scatterPlotAxis',
-        xTickValues: undefined,
-        yTickValues: undefined, //data.map( k => k[key]),
-        xTickSize: -height,
-        yTickSize: -width,
-        xTickFormat: undefined,
-        yTickFormat: undefined
-    }
-    axes(propsAxis)
-    // the scatter plot
-    const g = selection.append('g')
-        .attr('class', 'bars')
-        .attr('transform', \`translate(\${xPos}, \${yPos})\`)
-    const tRec = d3.transition()
-        .duration(700)
-        .ease(d3.easeLinear)
-    const circleRadius = 10
-    const circleOpacity = 0.5
-    let colorScale = undefined
-    if (cKey === 'origin' || cKey === 'name' || cKey === 'Species') {
-        const uKeys = new Set()
-        for(let e of data) {
-            uKeys.add(e[cKey])
-        }
-        colorScale = d3.scaleOrdinal()
-            .domain(Array.from(uKeys))
-            .range(d3.schemeDark2)
-    } else {
-        colorScale = d3.scaleSequential()
-            .domain(d3.extent(data,d => d[cKey]))
-            .interpolator(d3.interpolateViridis)
-    }
-    const circles = g.selectAll('g').data(data, d => d[xKey])
-      .join(
-        enter => {
-            const gEnter = enter.append('g')
-            gEnter.append('circle')
-                .attr('cy', 0)
-                .attr('cx', 0)
-                .attr('r', 0 )
-                .attr('opacity', circleOpacity)
-                .transition(tRec)
-                    .attr('cx', d => xScale(d[xKey]))
-                    .attr('cy', d => yScale(d[yKey])) 
-                    .attr('r', circleRadius)
-                    .attr('fill', d => colorScale(d[cKey]))
-                    .attr('stroke', d => d3.rgb(colorScale(d[cKey])).darker(1))
-                    .attr('stroke-widt', 1.5)
-            gEnter
-                .on('mouseover', function(event,elem) {
-                    const e = gEnter.nodes()
-                    const eIndex = e.indexOf(this)
-                    d3.selectAll('circle')
-                        .attr('fill-opacity', (d,i) => {
-                            if (eIndex === i) return 1
-                            else return 0.3
-                        })
-                    mouseOver()
-                })
-                .on('mousemove', function(event, d) {
-                    mouseMove(
-                        d[tKey],
-                        {
-                            x: event.x,
-                            y: event.y
-                        }
-                    )
-                })
-                .on('mouseout', function(event, d) {
-                    d3.selectAll('circle').attr('fill-opacity', circleOpacity)
-                    mouseOut()
-                })
-        },
-        update => update, // do nothing by update
-        exit => exit.attr('class', (d,i) => console.log('d ' + d)).remove() 
-    ) 
-}
-`
 
-const hlPre = d3.select("#hl-code").append("pre")
-const hlCod = hlPre
-    .append("code")
-    .attr("class", "language-javascript")
-    .attr("style", "border: 1px solid #C1BAA9")
-    .text(cText)

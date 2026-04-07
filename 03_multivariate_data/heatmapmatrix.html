@@ -34,16 +34,21 @@
             }
         </style>
         <link rel="stylesheet" href="../../css/lectures.css">
-        <link  
-            rel="stylesheet" 
-            title="Atom One Light"
-            href="../../contrib/highlightjs/atom-one-light.min.css">
         <!-- Scripts -->
-        <script src="../../contrib/highlightjs/highlight.min.js"></script>
         <script id="MathJax-script" async src="../../contrib/mathjax/es5/tex-mml-svg.js"></script>
-        <script src="../../contrib/d3.min.js"></script>
-        <script>
-            hljs.highlightAll()
+        <script type="importmap">
+            {
+                "imports": {
+                    "d3": "../contrib/d3.esm.js",
+                    "utilities": "../00_common/utilities.js",
+                    "colors": "../00_common/colors.js",
+                    "gui": "../00_common/gui.js",
+                    "draw": "../00_common/draw.js",
+                    "random": "../00_common/random.js",
+                    "binaryHeap": "../00_common/binaryHeap.js",
+                    "heatmapmatrix": "./heatmapmatrix.js"
+                }
+            }
         </script>
     </head>
     <!-- Axes with d3 -->
@@ -60,9 +65,15 @@
             <p><strong>Note:</strong> Population is given in thousands.</p>
             <hr>
             <div class="canvas">
-                <div class="heatmap-matrix-grid" id="dropdown-menu"></div>
-                <div class="canvas-grid" id="d3js_canvas"></div>
-            <script type="module" src="./heatmapmatrix.js"></script>
+                <div id="heatmapmatrix-canvas"></div>
+            <script type="module">
+                import drawAll from "heatmapmatrix"
+                const divElId = 'heatmapmatrix-canvas'
+                const url = '../INED-DemographicData.json'
+                const response = await fetch(url)
+                const data = await response.json()
+                drawAll(divElId, data)
+            </script>
             </div>
             <hr>
             <h3>The JavaScript Code</h3>
