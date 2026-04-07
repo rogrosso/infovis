@@ -5,7 +5,17 @@ import pathlib
 import re
 from sys import modules
 
-__all__ = ["get_project_modules"]
+__all__ = ["get_project_modules", "MODULE_ALIASES"]
+
+MODULE_ALIASES = {
+    "d3": "contrib/d3.esm.js",
+    "binaryHeap": "00_common/binaryHeap.js",
+    "random": "00_common/random.js",
+    "utilities": "00_common/utilities.js",
+    "gui": "00_common/gui.js",
+    "draw": "00_common/draw.js",
+    "colors": "00_common/colors.js"
+}
 
 IMPORT_FROM_RE = re.compile(
     r'(?P<prefix>\b(?:import|export)\b[\s\S]*?\bfrom\s*)(?P<quote>["\'])'

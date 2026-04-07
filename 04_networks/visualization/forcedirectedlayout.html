@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="description" content="Information Visualization"/>
+        <meta name="author" content="Roberto Grosso" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Network Force Directed Layout</title>
+        <!-- Styles -->
+        <link rel="stylesheet" href="../../css/lectures.css"> 
+        <!-- Scripts -->
+        <script id="MathJax-script" async src="../../contrib/mathjax/es5/tex-mml-svg.js"></script>
+        <script type="importmap">
+            {
+                "imports": {
+                    "d3": "../../contrib/d3.esm.js",
+                    "utilities": "../../00_common/utilities.js",
+                    "colors": "../../00_common/colors.js",
+                    "gui": "../../00_common/gui.js",
+                    "draw": "../../00_common/draw.js",
+                    "random": "../../00_common/random.js",
+                    "binaryHeap": "../../00_common/binaryHeap.js",
+                    "layoutPhysics": "./layoutPhysics.js",
+                    "forcedirectedlayout": "./forcedirectedlayout.js"
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <div class="infovis-lecture">
+            <h1>Force Directed Layout</h1>
+            <p>
+                <ul>
+                    <li>
+                        Compute layout for simple (no loops, no multiedges) undirected networks 
+                        (makes directed edges undirected).
+                    </li>
+                    <li>
+                        Uses structural information from the network.
+                    </li>
+                    <li>
+                        Layouts tend to be aesthetically pleasant, symmetric, and usually crossing-free for planar graphs.
+                    </li>
+                    <li>
+                        Community structure might become visible.
+                    </li>
+                    <li>
+                        Attracting force between nodes connected with an edge and repulsive force between all pairs of nodes
+                    </li>
+                </ul>
+            </p>
+            <p>
+                The layout is computed by iteration using a simulating annealing strategy.
+            </p>
+            <p><pre>
+    iterate M-times 
+    foreach v in V do
+        disp(v)=0; // vector containing displacement for v
+        foreach u in V and u != v do
+            d = v.pos - u.pos; // vector pointing from u to v
+            disp(v) = disp(v) + (d/norm(d)) * fr(norm(d))  // fr is repulsive force
+    foreach e in E do
+        d = v.pos - u.pos; // e = {v,u}
+        disp(v) = disp(v) - (d/norm(d)) * fa(norm(d))
+        disp(u) = disp(u) + (d/norm(d)) * fa(norm(d))
+    foreach v in V do
+        /* limit max displacement to frame; use temperature t to scale */
+        v.pos = v.pos + (disp(v)/norm(disp(v)) * min(t,norm(disp(v))
+        /* check that node is in window, otherwise clip */
+        v.pos.x = min(W/2, max(-W/2, v.pos.x))
+        v.pos.y = min(L/2, max(-L/2, v.pos.y))
+        t = cool(t) ; /* reduce temperature for next iteration */
+            </pre></p>
+            <h2>Fruchterman-Reinglod, 1990</h2>
+            <p>
+                The forces acting on a node are:
+                \[
+                \mathbf{f}_a = \frac{d^2}{k} \hat{\mathbf{r}} \qquad
+                \mathbf{f}_r = \frac{-k^2}{d} \hat{\mathbf{r}}
+                \]
+                with distance \(d\) between the nodes, and choose \(k\) to optimize distance between nodes in the 
+                drawing area:
+                \[
+                k = C \sqrt{\frac{\text{area}}{\text{nr. of vertices}}}
+                \]
+            </p>
+            <h2>ForceAtlas2, M. Jacomy, S. Heymann, T. Venturini, and M. Basitan, 2011</h2>
+            <p>
+                Assumption: real-world graph follows a power-law distribution of degrees, i.e., many leave nodes surrounding 
+                a few highly connected nodes. This results in cluttering around these nodes. Improve visualization by making 
+                repulsive force dependent on the node's degree
+            </p>
+            <p>
+                Repulsion force between two nodes \(n_1\) and \(n_2\) (repulsion by degree):
+                \[
+                \mathbf{f}_r = k_r \frac{(deg(n_1)+1)(deg(n_2)+1)}{d(n_1,n_2)}
+                \]
+            </p>
+            <p>
+                The attracting force between two nodes \(n_1\) and \(n_2\) is
+                \[
+                \mathbf{f}_a(n_1,n_2) = d(n_1,n_2)
+                \]
+            </p>
+            <hr>
+            <div class="canvas">
+                <div id="force-directed-layout" class="grid-container-1-column" style="text-align: center;">
+                </div>
+            <script type="module">
+                import { drawAll } from "forcedirectedlayout"
+                const url = '../../data/lesmiserables.json'
+                const response = await fetch(url)
+                const lesmiserables = await response.json()
+                drawAll('#force-directed-layout', lesmiserables)
+            </script>
+            </div>
+            <hr>
+            
+            <footer>
+                <hr>
+                <div class="impressum">
+                    <a class="impressum" href="../../impressum.html">Impressum</a> 
+                    <a class="dateschuntzerklaerung" href="../../datenschutzerklaerung.html">Datenschutzerklärung</a>
+                </div>
+            </footer>
+        </div>
+    </body>
+</html>
