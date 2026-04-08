@@ -204,14 +204,14 @@ cython_debug/
 .cursorindexingignore
 
 # Ignore everything in data
-data/*.npz
-data/*.csv
-data/processed/*.npz
-data/*.json
-data/*.gexf
+# data/*.npz
+# data/*.csv
+# data/processed/*.npz
+# data/*.json
+# data/*.gexf
 
 # But keep the README
-!data/README.md
+# !data/README.md
 
 # Ignore .vscode and everything in .vscode
 # For now, the syntax in independent of os speficic path separator, but if that ever changes, 

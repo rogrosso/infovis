@@ -1,6 +1,6 @@
 import { keyGen } from "utilities"
 // Prepare network for processing, create a common data structure for all algorithms
-export function prepareNetwork(network) {
+export function preprocessNetwork(network) {
     const {nodes, edges } = network
     // check, that undirected edges are unique
     const m_ = new Map()

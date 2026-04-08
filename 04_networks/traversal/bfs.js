@@ -3,7 +3,7 @@ import { randColorsHex } from "colors"
 import { genDivTooltip } from "draw"
 import { dropdown } from "gui"
 import { bfs } from "traversalAlgorithms"
-import { prepareNetwork } from "network"
+import { preprocessNetwork } from "networkUtils"
 
 // global variables
 const pathColor = "#6D191B"
@@ -88,8 +88,8 @@ export function drawAll(divElId, test01, lesmiserables) {
 
     // process data
     lesmiserables["edges"] = lesmiserables["links"]
-    prepareNetwork(lesmiserables)
-    prepareNetwork(test01)
+    preprocessNetwork(lesmiserables)
+    preprocessNetwork(test01)
 
     const drawConfig = {
         selection: netwG,
