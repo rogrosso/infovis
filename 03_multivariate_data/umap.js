@@ -1,4 +1,4 @@
-import { kdTree } from 'kdTree'
+import { kdTreeFactory } from 'kdTree'
 
 
 // Data set Swiss Roll
@@ -20,9 +20,11 @@ function generateSwissRoll(nPoints = 500, noise = 0.05) {
         const nz = z + (Math.random() - 0.5) * noise;
 
         data.push({
-            coords: [nx, ny, nz],
+            x: nx, // use naming convention for points used in kd-tree
+            y: ny,
+            z: nz,
             t: t, // Use 't' for color mapping to see the "unrolling"
-            id: i
+            index: i
         });
     }
     return data;
@@ -79,4 +81,17 @@ function computeEgeWeights(edges) {
         console.log(edge)
     }
 
+}
+
+function init() {
+    const data = generateSwissRoll(1000, 0.1)
+    //console.log(data)
+    return data
+}
+
+// export the functions to be used in the visualization
+export {
+    init,
+    computeEdges,
+    computeEgeWeights
 }

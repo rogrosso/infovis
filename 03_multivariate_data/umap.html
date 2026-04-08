@@ -8,12 +8,38 @@
         <title>UMAP (Uniform Manifold Approximation and Projection)</title>
         <!-- Styles -->
         <link rel="stylesheet" href="../../css/lectures.css">
+        <style>
+            .umpa-grid-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                background-color: aliceblue;
+                padding: 4px; 
+                margin: 0 auto; 
+                width: 720px;
+                align-items: left;
+                justify-items: left;
+                border: 1px solid teal;
+            }
+            #umap-threejs {
+                width: 350px;
+                height: 350px;
+                background-color: lightsteelblue;
+            }
+            #umap-d3js {
+                width: 350px;
+                height: 350px;
+                background-color: lightsteelblue;
+            }
+        </style>
         <!-- Scripts -->
         <script id="MathJax-script" async src="../../contrib/mathjax/es5/tex-mml-svg.js"></script>
         <script type="importmap">
             {
                 "imports": {
-                    "d3": "../../contrib/d3.esm.js",
+                    "d3": "../contrib/d3.esm.js",
+                    "three": "../contrib/threejs/three.module.min.js",
+                    "OrbitControls": "../contrib/threejs/OrbitControls.js",
                     "utilities": "../../00_common/utilities.js",
                     "colors": "../../00_common/colors.js",
                     "gui": "../../00_common/gui.js",
@@ -21,7 +47,8 @@
                     "random": "../../00_common/random.js",
                     "binaryHeap": "../../00_common/binaryHeap.js",
                     "kdTree": "../../00_common/kdTree.js",
-                    "streamgraph": "./streamgraph.js"
+                    "umap": "./umap.js",
+                    "umapViz": "./umapViz.js"
                 }
             }
         </script>
@@ -45,15 +72,13 @@
                 The follwing example visualizes Swiss Roll data.
             </p>
             <hr>
-            <div class="canvas">
-                <div id="umap-plot" class="grid-container-1-column"></div>
+            <div class="umpa-grid-container">
+                <div id="umap-threejs"></div>
+                <div id="umap-d3js"></div>
+            </div>
             <script type="module">
-                import { drawAll } from "streamgraph"
-                const url = '../data/baby_names.csv'
-                const response = await fetch(url)
-                const text = await response.text()
-                const divElId = '#stream-graph'
-                drawAll(divElId, text)
+                import { drawAll } from "umapViz"
+                drawAll()
             </script>
             </div>
             <hr>
