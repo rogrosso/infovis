@@ -159,7 +159,8 @@ export function kdTreeFactory(points_) {
 
             const result = []
             for (let i = 0; i < pq_.size(); i++) {
-                const n = pq_.element(i)
+                //const n = pq_.element(i)
+                const n = pq_.node(i)
                 result.push({index: n.index, point: points[n.index], distance: n.distance})
             }
             return result.sort( (n1,n2) => n1.distance - n2.distance )

@@ -10,12 +10,24 @@
         <style>
             div.heatmap-matrix-grid {
                 display: grid;
+                grid-template-columns: 750px;
+                gap: 1px;
+                background-color: #fdfdfd;
+                padding: 4px; 
+                margin: 0 auto; 
+                width: 750px;
+                height: 600px;
+                align-items: left;
+                justify-items: left;
+                border: 1px solid teal;
+            }
+            div.heatmap-menu-gird {
+                display: grid;
                 grid-template-columns: auto auto;
                 gap: 1px;
                 background-color: #fdfdfd;
                 padding: 4px; 
                 margin: 0 auto; 
-                width: 680px;
                 align-items: left;
                 justify-items: left;
                 border: 1px solid teal;
@@ -23,11 +35,10 @@
             div.canvas-grid {
                 display: grid;
                 grid-template-columns: auto auto;
-                gap: 1px;
+                gap: 5px;
                 background-color: white;
                 padding: 4px; 
                 margin: 0 auto; 
-                width: 680px;
                 align-items: left;
                 justify-items: left;
                 border: 1px solid teal;
@@ -65,19 +76,17 @@
             <p><strong>Note:</strong> Population is given in thousands.</p>
             <hr>
             <div class="canvas">
-                <div id="heatmapmatrix-canvas"></div>
+                <div id="heatmapmatrix-canvas" class="heatmap-matrix-grid"></div>
             <script type="module">
                 import drawAll from "heatmapmatrix"
                 const divElId = 'heatmapmatrix-canvas'
-                const url = '../INED-DemographicData.json'
+                const url = '../data/INED-DemographicData.json'
                 const response = await fetch(url)
                 const data = await response.json()
                 drawAll(divElId, data)
             </script>
             </div>
             <hr>
-            <h3>The JavaScript Code</h3>
-            <div class="code" id="hl-code"></div>
             <footer>
                 <hr>
                 <div class="impressum">

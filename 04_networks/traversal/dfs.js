@@ -2,7 +2,7 @@ import * as d3 from "d3"
 import { randColorsHex } from "colors"
 import { genDivTooltip } from "draw"
 import { dropdown } from "gui"
-import { prepareNetwork } from "network"
+import { preprocessNetwork } from "networkUtils"
 import { bfs, dfs } from "traversalAlgorithms"
 
 
@@ -102,8 +102,8 @@ export function drawAll(divElId, test01, lesmiserables) {
 
     // process data
     lesmiserables["edges"] = lesmiserables["links"]
-    prepareNetwork(lesmiserables)
-    prepareNetwork(test01)
+    preprocessNetwork(lesmiserables)
+    preprocessNetwork(test01)
 
     const drawConfig = {
         selection: netwG,

@@ -30,24 +30,6 @@ function generateSwissRoll(nPoints = 500, noise = 0.05) {
     return data;
 }
 
-
-function biuildKdTree(target, depth = 0) {
-    const points = []
-    if (points.length === 0) {
-        return null
-    }
-
-    for (let v of target.vertices) {
-        points.push({
-            index: v.index,
-            x: v.x,
-            y: v.y,
-            z: v.z
-        })
-    }
-    return kdTreeFactory(points) 
-}
-
 // Euclidean distance function for 3D points
 function distance(a, b) {
     const dx = a.x - b.x;
@@ -56,42 +38,49 @@ function distance(a, b) {
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
-function computeEdges(target, k = 5) {
-    const tree = biuildKdTree(target)
-    const edges = []
-    for (let v of target.vertices) {
-        const neighbors = tree.nearest({x: v.x, y: v.y, z: v.z}, k + 1) // +1 to include the point itself
-        for (let i = 1; i < neighbors.length; i++) { // Start from 1 to skip the point itself
-            const neighbor = neighbors[i][0]
-            edges.push({
-                source: v.index,
-                target: neighbor.index,
-                weight: 0
-            })
+function computeNetwork(vertices, k = 15) {
+    const kdTree = kdTreeFactory(vertices, distance)
+    // compute edges based on the k nearest neighbors
+    const neighbors = new Array(k).fill(null).map(() => [])
+    for (let v of vertices) {
+        const knn = kdTree.knn(v, k + 1) // +1 to include the point itself
+        for (let i = 1; i < knn.length; i++) { // Start from 1 to skip the point itself
+            // update neighbors with the k nearest neighbors
+            // using squared distance in kd-tree, so take the square root for actual distance
+            neighbors[i].push({index: v.index, distance: Math.sqrt(knn[i].distance)}) 
         }
     }
-    return edges
+    // compute edge weights based on the distances between points
+    const edges = computeEdges(vertices,neighbors)
+
+    return {
+        vertices,
+        neighbors,
+        edges
+    }
 }
 
 // UMAP uses a fuzzy set representation of the data, where the similarity between points is represented as a probability. 
 // The edge weights in the graph are computed based on the distances between points in the high-dimensional space, and 
 // these weights are used to construct a low-dimensional embedding that preserves the local structure of the data.
-function computeEgeWeights(edges) {
-    for (let edge of edges) {
-        console.log(edge)
+function computeEgeWeights(vertices, neighbors) {
+    for (let n of neighbors) {
+        const k = n.length
+        const rho = Math.max(0, n[0].distance) // distance to the closest neighbor
     }
 
 }
 
 function init() {
     const data = generateSwissRoll(1000, 0.1)
+    const network = computeNetwork(data)
     //console.log(data)
-    return data
+    return network.vertices
 }
 
 // export the functions to be used in the visualization
 export {
     init,
-    computeEdges,
+    computeNetwork,
     computeEgeWeights
 }

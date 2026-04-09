@@ -3,7 +3,7 @@ import { colorsUno, colorsDos, randColorsHex } from "colors"
 import { genDivTooltip } from "draw"
 import { dropdown } from "gui"
 import { random_seed } from "random"
-import { prepareNetwork } from "network"
+import { preprocessNetwork } from "networkUtils"
 import { dijkstra, bfs } from "traversalAlgorithms"
 
 
@@ -120,8 +120,8 @@ export function drawAll(divElId, test01, test02) {
     }
     checkWeights(test01)
     checkWeights(test02)
-    prepareNetwork(test01)
-    prepareNetwork(test02)
+    preprocessNetwork(test01)
+    preprocessNetwork(test02)
 
     const drawConfig = {
         selection: netwG,

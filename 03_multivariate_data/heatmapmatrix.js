@@ -15,6 +15,9 @@ export default function drawAll(divElId, data) {
         let cKeys = null
         let csW = 0
         let csH = 0
+        let hmW = 0
+        let hmH = 0
+
         // Color scales
         const csMap = new Map()
         const csKeys = [ 'Reds','OrRd','YlOrRd','PuRd','RdYlBu','CubehelixDefault','Cividis','Viridis','Inferno','Rainbow']
@@ -101,17 +104,37 @@ export default function drawAll(divElId, data) {
         }
         // draw the heatmap
         function draw(divElId, dData, keys) {
-            const width = 600
-            const height = 400
+            let width = 600
+            let height = 500
+            const container = document.getElementById('heatmapmatrix-canvas')
+            const rect = container.getBoundingClientRect()
+            if (rect.width > width) width = rect.width
+            if (rect.height > height) height = rect.height
+
+            // menu size
+            const m_width = width
+            const m_height = 0.05 * height
+            // canvas size
+            const c_width = width
+            const c_height = 0.95 * height
+            
+            // heatmap size
+            hmW = 0.85 * c_width
+            hmH = c_height
+            // color scale size
+            csW = 0.1 * c_width
+            csH = c_height
+
             const margin = { top:40, bottom: 80, left:80, right: 20}
-            const iW = width - margin.left - margin.right
-            const iH = height - margin.top - margin.bottom
+            const iW = hmW - margin.left - margin.right
+            const iH = hmH - margin.top - margin.bottom
+
 
             // menu and canvas divs
             const gridObj = d3.select(`#${divElId}`)
-                .attr('class', 'grid-container-1-column')
+            // Menu
             const divMenu = gridObj.append("div")
-                .attr("class", "heatmap-matrix-grid")
+                .attr("class", "heatmap-menue-grid") // two column grid for menu, this is not correct 
                 .attr("id", "dropdown-menu")
             const dwDiv = divMenu.append('div')
                 .attr('class', 'cellDW')
@@ -119,7 +142,10 @@ export default function drawAll(divElId, data) {
                 .style('grid-column-start','1')
                 .style('grid-column-end', '1')
                 .style('margin', '1px')
+                //.style('width', m_width + 'px')
+                //.style('height', m_height + 'px')
 
+            // Canvas for drawing the heatmap and the color scale
             const canvasDiv = gridObj.append("div")
                 .attr("class", "canvas-grid")
                 .attr("id", "heatmapmatrix-canvas")
@@ -127,13 +153,13 @@ export default function drawAll(divElId, data) {
                 .attr('class', 'cell')
                 .attr('id', 'heatmapmatrix-div')
                 .attr('margin', '1px')
-            const csDiv = gridObj.append('div')
+            const csDiv = canvasDiv.append('div') // div to draw color scale
                 .attr('class', 'cell')
                 .attr('id', 'colorscale_div')
-            const hmSvg = hmDiv //d3.selectAll("#d3js_canvas")
+            const hmSvg = hmDiv //div to draw svg of heatmap matrix
                 .append('svg')
-                .attr('width',  width)
-                .attr('height', height)
+                .attr('width',  hmW)
+                .attr('height', hmH)
                 .attr('transform', `translate(0, ${5})`)
             // create dropdowns
             dropdown({
@@ -175,8 +201,8 @@ export default function drawAll(divElId, data) {
             hmSvg.selectAll('.domain').remove()
             // draw the heatmap
             const heatmap = hmSvg.append('g')
-                .attr('width', iW)
-                .attr('height', iH)
+                .attr('width', hmW)
+                .attr('height', hmH)
                 .attr('transform', `translate(${margin.left}, 0 )`)
             heatmapSVG = heatmap.selectAll().data(countires, function(d) { return d.Country + ':' + d.key })
                 .join(
@@ -242,8 +268,8 @@ export default function drawAll(divElId, data) {
                 )
             // draw the color scales
             colorScaleSVG = csDiv.append('svg')
-                .attr('width', 100)
-                .attr('height', height)
+                .attr('width', csW)
+                .attr('height', csH)
                 .attr('transform', `translate(0, ${7})`)
             csW = 30
             csH = height - margin.bottom - margin.top
