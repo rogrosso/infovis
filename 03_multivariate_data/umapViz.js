@@ -1,7 +1,7 @@
 import * as d3 from 'd3'
 import * as THREE from 'three'
 import { OrbitControls } from 'OrbitControls'
-import * as umap from 'umap'
+import {initUMAP, conservativeForces } from 'umap'
 
 function normalizePointCloud(pointCloud) {
     const normalizedPoints = pointCloud.map(point => ({ ...point }))
@@ -209,9 +209,236 @@ function drawThreejsPointCloud(pointCloud) {
 
     window.addEventListener('resize', onResize)
     render()
+} // drawThreejsPointCloud
+
+/************************************************************************************************************************/
+// D
+// 
+/************************************************************************************************************************/
+const dampConst = 10
+let damping = dampConst
+const lr = 1
+
+// Helper function: compute some noise
+function jiggle() {
+    return (Math.random() - 0.5) * 1e-10
 }
 
+// Scale network: the simulation in the low-dimensional space is in a small area, due to scaling of forces,
+// so we need to scale the forces to make the layout more spread out and visually appealing
+// We use two set of nodes, one for simulation and the other for visualization, to avoid to modify the position of the 
+// nodes in the simulation, which are used to compute the forces
+function scaleNetwork(q, vertices, Q_SIZE, width, height) {
+    const alpha = Math.max(width, height) / Q_SIZE
+    const centerX = 0 // (width - 1) / 2 the canvas is translated by (width / 2, height / 2), so the center of the layout must be at (0, 0) in the simulation coordinates
+    const centerY = 0 //(height - 1) / 2
+    for (let i = 0; i < vertices.length; i++) {
+        vertices[i].x = q[i].x * alpha + centerX
+        vertices[i].y = q[i].y * alpha + centerY
+    }
+}
+
+// Implement functions for force directed layout
+// The layout is computed by a dynamic system of forctes. The integration uses 
+// position Verlet integration, which is a numerical method for integrating ordinary differential equations.
+function initNetwork(q, vertices, edges, Q_SIZE, width, height) {
+    const radius = 5 // choose a small but still visible radius for the nodes, to avoid too much overlap between them
+    for (let v of q) {
+        v.xprev = v.x
+        v.yprev = v.y
+        v.vx = 0
+        v.vy = 0
+    }
+    q.forEach( (v, i) => {
+        vertices[i].x = v.x
+        vertices[i].y = v.y
+        vertices[i].r = radius
+        vertices[i].t = v.t
+    })
+    scaleNetwork(q, vertices, Q_SIZE, width, height)
+    
+    // compute a value in [0, 1] from the edge weights, to use it for the stroke width of the edges
+    const maxWeight = Math.max(...edges.map(e => e.weight))
+    for (let e of edges) {
+        e.value = e.weight / maxWeight
+    }
+}
+
+function fixPositions(nodes, iW, iH) {
+        // shift center of network to origin, to avoid numerical instability in the optimization process, 
+        // which can cause the layout to be not stable and visually unappealing
+        const pos = { x: 0, y: 0 }
+        nodes.forEach((n) => {
+            pos.x += n.x
+            pos.y += n.y
+        })
+        pos.x /= nodes.length
+        pos.y /= nodes.length
+        nodes.forEach((n) => {
+            n.x -= pos.x
+            n.y -= pos.y
+        })
+        // fix positions of the nodes to be inside the canvas, to avoid numerical instability in the optimization process,
+        const min = -Math.max(iW, iH) / 2
+        const max = Math.max(iW, iH) / 2
+        nodes.forEach((n) => {
+            if (n.x < min) n.x = min
+            if (n.x > max) n.x = max
+            if (n.y < min) n.y = min
+            if (n.y > max) n.y = max
+        })
+    }
+
+// Compute layout using a force-directed algorithm in low-dimensional space.
+// Parameters:
+//  - vertices: array of vertex objects, each with properties x, y, r (radius), and index
+//  - edges: array of edge objects, each with properties source and target (vertex indices)
+//  - lr: learning rate for the force updates
+//  - disp: array of displacement vectors for each vertex, initialized to zer
+function positionVerletIntegration(vertices, edges, lr, disp) {
+    // this is not here, but anyway
+    for (let d of disp) {
+        d.x = 0
+        d.y = 0
+    }
+    // conservative forces
+    conservativeForces(vertices, edges, lr, disp)
+    // update position, velocity and acceleration
+    const w = damping // set damping global 
+    const h = 0.008
+    for (let v of vertices) {
+        const xprev = v.xprev
+        const yprev = v.yprev
+        const fx = disp[v.index].x - w * v.vx + jiggle() // add some noise
+        const fy = disp[v.index].y - w * v.vy + jiggle() // add some noise
+        const dx = (v.x - xprev) + fx * h * h
+        const dy = (v.y - yprev) + fy * h * h
+        v.xprev = v.x
+        v.yprev = v.y
+        v.x += dx
+        v.y += dy
+        v.vx = dx / h
+        v.vy = dy / h
+    }
+}
+
+function drawD3PointCloud(q, edges, Q_SIZE) {
+    // Parameters for the force-directed layout
+    let linkG = undefined
+    let nodeG = undefined
+
+    // colors
+    const nodeStrokeWidth = 1.5
+    const selNodeStrokeWidth = 3
+    const nodeStrokeColor = "#ffffff"
+    const selNodeStrokeColor = "#867979"
+
+    // get container dimensions
+    const container = document.getElementById('umap-d3js')
+    let width = 400
+    let height = 400
+    const rect = container.getBoundingClientRect()
+    if (rect.width < width) width = rect.width
+    if (rect.height <height) height = rect.height
+
+    // compute size for the drawing
+    const margin = { top: 10, right: 10, bottom: 10, left: 10 }
+    const iW = width - margin.left - margin.right
+    const iH = height - margin.top - margin.bottom
+
+    // Inite network with given size
+    const vertices = q.map( (v, i) => ({ index: i, x: v.x, y: v.y, r: 0 }) )
+    const disp = q.map( v => ({ index: v.index, d: 0, x: 0, y: 0 }) )
+    initNetwork(q, vertices, edges, Q_SIZE, iW, iH)
+    
+    // init Graphic
+    const svg = d3.select('#umap-d3js')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background-color', '#f3f4f6')
+        .style('border', 'solid #a0adaf')
+    // add a group for the network
+    const netG = svg
+        .append('g')
+        .attr('class', 'umpa-network')
+        .attr('transform', `translate(${width / 2}, ${height / 2})`) // the scale function must take into account the translation of the group
+
+    // Line generator
+    const lineGenerator = d3.line().curve(d3.curveBasis)
+    // color nodes using the t property, which is the iteration number of the optimization when the point was added to the layout
+    const [minT, maxT] = d3.extent(vertices, point => point.t)
+    const colorScale = d3.scaleSequential(d3.interpolateTurbo).domain([minT, maxT])
+    
+    // add nodes
+    nodeG = netG
+            .append("g")
+            .attr("stroke", nodeStrokeColor)
+            .attr("stroke-width", nodeStrokeWidth)
+            .selectAll("circle")
+            .data(vertices)
+            .join("circle")
+            .attr("r", (d) => d.r)
+            .attr("cx", (d) => d.x)
+            .attr("cy", (d) => d.y)
+            .attr("fill", (d) => colorScale(d.t))
+            .call(
+                d3
+                    .drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragend)
+            )
+        
+    function dragstarted(event, d) {
+        damping = dampConst
+        d3.select(this)
+            .attr("stroke", selNodeStrokeColor)
+            .attr("stroke-width", selNodeStrokeWidth)
+    }
+    function dragged(event, d) {
+        // The possition have to be transformed back to the simulation coordinates, 
+        // to update the position of the node in the simulation, which is used to compute the forces
+        // translate to origin and down scale to simulation coordinates
+        const scale = Q_SIZE / Math.max(iW, iH)
+        const qIndex = d.index
+        q[qIndex].x = event.x * scale
+        q[qIndex].y = event.y * scale
+        //event.subject.x = event.x
+        //event.subject.y = event.y
+    }
+    function dragend(event, d) {
+        d3.select(this)
+            .attr("stroke", nodeStrokeColor)
+            .attr("stroke-width", nodeStrokeWidth)
+    }
+
+    // Animation
+    function animate() {
+        requestAnimationFrame(animate)
+        if (damping > 1) damping *= 0.99
+        positionVerletIntegration(q, edges, lr, disp)
+        fixPositions(q, Q_SIZE, Q_SIZE)
+        scaleNetwork(q, vertices, Q_SIZE, iW, iH)
+        
+        // redraw nodes
+        nodeG
+            .attr("cx", (d) => d.x)
+            .attr("cy", (d) => d.y)
+    }
+    animate()
+
+} // drawD3PointCloud
+
 export function drawAll() {
-    const pointCloud = normalizePointCloud(umap.init())
+    const {
+        q,
+        p,
+        neighbors,
+        edges,
+        Q_SIZE
+    } = initUMAP()
+    const pointCloud = normalizePointCloud(p)
     drawThreejsPointCloud(pointCloud)
+    drawD3PointCloud(q, edges, Q_SIZE)
 }

@@ -1,4 +1,4 @@
-import { kdTreeFactory } from 'kdTree'
+import { kdTreeFactory } from './00_common/kdTree.js'
 
 // Global constants
 // Size of low-dimensional embedding
@@ -234,10 +234,11 @@ function conservativeForces(vertices, edges, lr, disp) {
             const negDx = negative.x - source.x
             const negDy = negative.y - source.y
             const negD = negDx ** 2 + negDy ** 2
-            const cNeg = (weight / M) * (2 / ((negD + epsilon) * (1 + negD)))
-            // Negative samples act as one-sided SGD updates for the source node.
+            const cNeg = 2 / ((negD + epsilon) * (1 + negD))
             disp[source.index].x -= lr * cNeg * negDx
             disp[source.index].y -= lr * cNeg * negDy
+            disp[negative.index].x += lr * cNeg * negDx
+            disp[negative.index].y += lr * cNeg * negDy
         }
     }
     // Apply collision forces to avoid points to be too close to each other in the low-dimensional space, which can cause 
@@ -268,12 +269,13 @@ function collisionForces(beta, alpha, eps, vertices, edges,disp) {
             disp[n2.index].x += fr * d.x
             disp[n2.index].y += fr * d.y
         } else {
-            // if there is no collision, keep a weak repulsive force that decays quickly with distance
-            const fr = alpha * Math.exp(-decay*(s - d.d)**2)
-            disp[n1.index].x -= fr * d.x
-            disp[n1.index].y -= fr * d.y
-            disp[n2.index].x += fr * d.x
-            disp[n2.index].y += fr * d.y
+            // if the distance between the points is greater than the augmented sum of their radii, 
+            // apply a weak attractive force to keep them together
+            const fa = alpha * Math.exp(-decay*(s - d.d)**2)
+            disp[n1.index].x -= fa * d.x
+            disp[n1.index].y -= fa * d.y
+            disp[n2.index].x += fa * d.x
+            disp[n2.index].y += fa * d.y
         }
     }
 }

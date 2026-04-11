@@ -88,7 +88,7 @@ export function kdTreeFactory(points_) {
      * @returns void
      */
     function searchMany(target, node, depth, k) {
-        if (node === null) return 
+        if (node === null || k <= 0) return 
         node.distance = distance(target, points[node.index])
         const dimension = dimensions[depth % 3]
         let next = null
@@ -108,7 +108,7 @@ export function kdTreeFactory(points_) {
         } 
         // search the other side of the hyperplane if needed
         const squaredSide = side * side
-        if (squaredSide <= pq_.peek().distance || pq_.size() < k) { 
+        if (pq_.size() < k || squaredSide <= pq_.peek().distance) { 
             searchMany(target, opposite, depth + 1, k)
         }
     }
@@ -151,6 +151,7 @@ export function kdTreeFactory(points_) {
      * @returns the k-nearest points
      */
     function knn(point, k) {
+        if (k <= 0) return []
         pq_ = binaryHeapFactory((e) => -e.distance)
         searchMany(point, root, 0, k)
         if (pq_.size() === 0) {
