@@ -58,9 +58,226 @@ function distance2D(n1, n2) {
     return { x: dx / d, y: dy / d, d: d }
 }
 
+function lowDimensionalSimilarity(distance, a, b) {
+    return 1 / (1 + a * distance ** (2 * b))
+}
+
+function umapFitTarget(distance, minDist, spread) {
+    if (distance <= minDist) return 1
+    return Math.exp(-(distance - minDist) / spread)
+}
+
+function computeABParams(minDist = 0.1, spread = 1) {
+    const safeMinDist = Math.max(0, minDist)
+    const safeSpread = Math.max(spread, 1e-6)
+    const maxDistance = Math.max(3 * safeSpread + safeMinDist, 3 * safeSpread, 1)
+    const sampleCount = 256
+    const distances = new Array(sampleCount)
+    const target = new Array(sampleCount)
+
+    for (let i = 0; i < sampleCount; i++) {
+        const distance = maxDistance * i / (sampleCount - 1)
+        distances[i] = distance
+        target[i] = umapFitTarget(distance, safeMinDist, safeSpread)
+    }
+
+    function fitError(a, b) {
+        let error = 0
+        for (let i = 0; i < sampleCount; i++) {
+            const diff = lowDimensionalSimilarity(distances[i], a, b) - target[i]
+            error += diff * diff
+        }
+        return error
+    }
+
+    let bestA = 1
+    let bestB = 1
+    let bestError = Infinity
+
+    const coarseALogMin = -2
+    const coarseALogMax = 2
+    const coarseASteps = 25
+    const coarseBMin = 0.25
+    const coarseBMax = 3
+    const coarseBSteps = 24
+    for (let i = 0; i < coarseASteps; i++) {
+        const tA = i / (coarseASteps - 1)
+        const a = 10 ** (coarseALogMin + tA * (coarseALogMax - coarseALogMin))
+        for (let j = 0; j < coarseBSteps; j++) {
+            const tB = j / (coarseBSteps - 1)
+            const b = coarseBMin + tB * (coarseBMax - coarseBMin)
+            const error = fitError(a, b)
+            if (error < bestError) {
+                bestA = a
+                bestB = b
+                bestError = error
+            }
+        }
+    }
+
+    const refineALogCenter = Math.log10(bestA)
+    const refineALogSpan = 0.5
+    const refineASteps = 41
+    const refineBMin = Math.max(0.05, bestB - 0.5)
+    const refineBMax = bestB + 0.5
+    const refineBSteps = 41
+    for (let i = 0; i < refineASteps; i++) {
+        const tA = i / (refineASteps - 1)
+        const a = 10 ** (refineALogCenter - refineALogSpan + 2 * refineALogSpan * tA)
+        for (let j = 0; j < refineBSteps; j++) {
+            const tB = j / (refineBSteps - 1)
+            const b = refineBMin + tB * (refineBMax - refineBMin)
+            const error = fitError(a, b)
+            if (error < bestError) {
+                bestA = a
+                bestB = b
+                bestError = error
+            }
+        }
+    }
+
+    return { a: bestA, b: bestB }
+}
+
 function checkIndex(knn, index) {
     return knn.some(n => n.index === index);
 }
+
+function normalizeVector(vector) {
+    let norm = 0
+    for (const value of vector) norm += value * value
+    norm = Math.sqrt(norm)
+    if (norm < 1e-12) return false
+    for (let i = 0; i < vector.length; i++) vector[i] /= norm
+    return true
+}
+
+function orthogonalizeVector(vector, basis) {
+    for (const base of basis) {
+        let dot = 0
+        for (let i = 0; i < vector.length; i++) dot += vector[i] * base[i]
+        for (let i = 0; i < vector.length; i++) vector[i] -= dot * base[i]
+    }
+    return normalizeVector(vector)
+}
+
+function createRandomEmbedding(vertices) {
+    const q = new Array(vertices.length).fill(null).map(() => ({index: -1, x: 0, y: 0, r: 0}))
+    for (let v of vertices) {
+        q[v.index].x = Q_SIZE * (Math.random() - 0.5)
+        q[v.index].y = Q_SIZE * (Math.random() - 0.5)
+        q[v.index].index = v.index
+        q[v.index].r = radius
+        q[v.index].t = v.t
+    }
+    return q
+}
+
+function deterministicVector(length, frequency) {
+    const vector = new Array(length)
+    const scale = Math.max(1, length - 1)
+    for (let i = 0; i < length; i++) {
+        const angle = 2 * Math.PI * frequency * i / scale
+        vector[i] = Math.cos(angle) + 0.5 * Math.sin(0.5 * angle)
+    }
+    return vector
+}
+
+function createSpectralEmbedding(vertices, edges) {
+    const nodeCount = vertices.length
+    if (nodeCount === 0) return []
+
+    const adjacency = new Array(nodeCount).fill(null).map(() => [])
+    const degrees = new Array(nodeCount).fill(0)
+    for (const edge of edges) {
+        adjacency[edge.source].push({ index: edge.target, weight: edge.weight })
+        adjacency[edge.target].push({ index: edge.source, weight: edge.weight })
+        degrees[edge.source] += edge.weight
+        degrees[edge.target] += edge.weight
+    }
+
+    const totalDegree = degrees.reduce((sum, degree) => sum + degree, 0)
+    if (totalDegree <= 0) return createRandomEmbedding(vertices)
+
+    const trivialEigenvector = new Array(nodeCount)
+    for (let i = 0; i < nodeCount; i++) trivialEigenvector[i] = Math.sqrt(degrees[i] / totalDegree)
+    normalizeVector(trivialEigenvector)
+
+    function multiplyNormalizedAdjacency(vector) {
+        const result = new Array(nodeCount).fill(0)
+        for (let i = 0; i < nodeCount; i++) {
+            const degreeI = degrees[i]
+            if (degreeI <= 0) continue
+            const invSqrtDegreeI = 1 / Math.sqrt(degreeI)
+            for (const neighbor of adjacency[i]) {
+                const degreeJ = degrees[neighbor.index]
+                if (degreeJ <= 0) continue
+                result[i] += neighbor.weight * invSqrtDegreeI * vector[neighbor.index] / Math.sqrt(degreeJ)
+            }
+        }
+        return result
+    }
+
+    const basis = []
+    const maxIterations = 60
+    for (const frequency of [1, 2]) {
+        let candidate = deterministicVector(nodeCount, frequency)
+        if (!orthogonalizeVector(candidate, [trivialEigenvector, ...basis])) {
+            return createRandomEmbedding(vertices)
+        }
+
+        for (let iteration = 0; iteration < maxIterations; iteration++) {
+            candidate = multiplyNormalizedAdjacency(candidate)
+            if (!orthogonalizeVector(candidate, [trivialEigenvector, ...basis])) {
+                return createRandomEmbedding(vertices)
+            }
+        }
+        basis.push(candidate)
+    }
+
+    if (basis.length < 2) return createRandomEmbedding(vertices)
+
+    const embedding = new Array(nodeCount).fill(null).map(() => ({index: -1, x: 0, y: 0, r: 0}))
+    const spectralRadius = 0.2 * Q_SIZE
+    let maxAbs = 0
+    for (let i = 0; i < nodeCount; i++) {
+        maxAbs = Math.max(maxAbs, Math.abs(basis[0][i]), Math.abs(basis[1][i]))
+    }
+    const scale = maxAbs > 1e-12 ? spectralRadius / maxAbs : 1
+
+    let maxx = -Infinity
+    let minx = Infinity
+    let maxy = -Infinity
+    let miny = Infinity
+    for (let i = 0; i < nodeCount; i++) {
+        embedding[i].index = i
+        embedding[i].x = basis[0][i] * scale
+        embedding[i].y = basis[1][i] * scale
+        embedding[i].r = radius
+        embedding[i].t = vertices[i].t
+        // compute max and min for x and y to scale the embedding to fit the Q_SIZE
+        if (embedding[i].x > maxx) maxx = embedding[i].x
+        if (embedding[i].x < minx) minx = embedding[i].x
+        if (embedding[i].y > maxy) maxy = embedding[i].y
+        if (embedding[i].y < miny) miny = embedding[i].y
+    }
+    // scale the embedding to fit the Q_SIZE
+    const xScale = (Q_SIZE - 2 * radius) / (maxx - minx)
+    const yScale = (Q_SIZE - 2 * radius) / (maxy - miny)
+    for (let i = 0; i < nodeCount; i++) {
+        embedding[i].x = (embedding[i].x - minx) * xScale - Q_SIZE / 2 + radius
+        embedding[i].y = (embedding[i].y - miny) * yScale - Q_SIZE / 2 + radius
+    }
+    return embedding
+}
+
+function createInitialEmbedding(vertices, edges, initialization = 'random') {
+    if (initialization === 'spectral') {
+        return createSpectralEmbedding(vertices, edges)
+    }
+    return createRandomEmbedding(vertices)
+}
+
 function checkKNN(target, knn, vertices) {
     const bruteForce = vertices
         .map(v => ({
@@ -86,7 +303,7 @@ function checkKNN(target, knn, vertices) {
 
     return true
 }
-function computeNetwork(vertices, k = 15) {
+function computeNetwork(vertices, k = 15, initialization = 'random') {
     const kdTree = kdTreeFactory(vertices, distance)
     // compute edges based on the k nearest neighbors
     const neighbors = new Array(vertices.length).fill(null).map(() => ({
@@ -112,15 +329,7 @@ function computeNetwork(vertices, k = 15) {
     // compute edge weights based on the distances between points
     const edges = computeEdges(neighbors)
 
-    // compute vertices for the low-dimensional embedding, initialize them randomly in a 2D space
-    const q = new Array(vertices.length).fill(null).map(() => ({index: -1, x: 0, y: 0, r: 0}))
-    for (let v of vertices) {
-        q[v.index].x = Q_SIZE * (Math.random() - 0.5)
-        q[v.index].y = Q_SIZE * (Math.random() - 0.5)
-        q[v.index].index = v.index
-        q[v.index].r = radius
-        q[v.index].t = v.t // Use 't' for color mapping to see the "unrolling" in the low-dimensional space
-    }
+    const q = createInitialEmbedding(vertices, edges, initialization)
 
     return {
         q: q,
@@ -206,7 +415,7 @@ function computeEdges(neighbors) {
 }
 
 // compute layout using UMAP, which is based on stochastic gradient descent to optimize the low-dimensional embedding
-function conservativeForces(vertices, edges, lr, disp) {
+function conservativeForces(vertices, edges, lr, disp, a = 1, b = 1) {
     const N = vertices.length
     const epsilon = 1e-4 // small value to avoid division by zero in the repulsive force computation
     const M = 5 // number of negative samples to draw for each attractive edge update
@@ -216,9 +425,11 @@ function conservativeForces(vertices, edges, lr, disp) {
         const target = vertices[e.target]
         const weight = e.weight
         const d = distance2D(source, target)
-        const c = 2 * weight / (1 + d.d ** 2) // scale attraction using the current low-dimensional distance
-        const dx = c * (target.x - source.x)
-        const dy = c * (target.y - source.y)
+        const distanceSquared = Math.max(d.d ** 2, epsilon)
+        const distancePower = distanceSquared ** (b - 1)
+        const c = 2 * a * b * weight * distancePower / (1 + a * distanceSquared ** b)
+        const dx = c * d.x * d.d
+        const dy = c * d.y * d.d
 
         disp[source.index].x += lr * dx
         disp[source.index].y += lr * dy
@@ -231,10 +442,11 @@ function conservativeForces(vertices, edges, lr, disp) {
                 randomIndex = Math.floor(Math.random() * N)
             }
             const negative = vertices[randomIndex]
-            const negDx = negative.x - source.x
-            const negDy = negative.y - source.y
-            const negD = negDx ** 2 + negDy ** 2
-            const cNeg = (weight / M) * (2 / ((negD + epsilon) * (1 + negD)))
+            const negDistance = distance2D(source, negative)
+            const negDx = negDistance.x * negDistance.d
+            const negDy = negDistance.y * negDistance.d
+            const negD = Math.max(negDistance.d ** 2, epsilon)
+            const cNeg = (weight / M) * (2 * b / (negD * (1 + a * negD ** b)))
             // Negative samples act as one-sided SGD updates for the source node.
             disp[source.index].x -= lr * cNeg * negDx
             disp[source.index].y -= lr * cNeg * negDy
@@ -242,9 +454,9 @@ function conservativeForces(vertices, edges, lr, disp) {
     }
     // Apply collision forces to avoid points to be too close to each other in the low-dimensional space, which can cause 
     // numerical instability in the optimization process
-    const beta = 1 // two times the sum of the radii of the points is the distance at which the collision force starts to be applied
-    const alpha = 1//100 // strength of the collision force
-    const eps = 0.1 // small value to avoid division by zero in the collision force computation
+    const beta = 1.5 // two times the sum of the radii of the points is the distance at which the collision force starts to be applied
+    const alpha = 1 //100 // strength of the collision force
+    const eps = 0.01 // small value to avoid division by zero in the collision force computation
     collisionForces(beta, alpha, eps, vertices, edges, disp)
 }
 
@@ -258,7 +470,7 @@ function collisionForces(beta, alpha, eps, vertices, edges,disp) {
         const d = distance2D(n1, n2) // vector pointing from node n1 to node n2
         const s = beta * (n1.r + n2.r)
         const r = d.d - s 
-        const decay = 10 * Q_SIZE
+        const decay = 15
         if (r < 0) { 
             // if the distance between the points is less than the augmented sum of their radii, 
             // apply a repulsive force to push them apart
@@ -267,32 +479,39 @@ function collisionForces(beta, alpha, eps, vertices, edges,disp) {
             disp[n1.index].y -= fr * d.y
             disp[n2.index].x += fr * d.x
             disp[n2.index].y += fr * d.y
-        } else {
+        } else if (r < s) {
             // if there is no collision, keep a weak repulsive force that decays quickly with distance
-            const fr = alpha * Math.exp(-decay*(s - d.d)**2)
+            const fr = alpha * Math.exp(-decay*r/s)
             disp[n1.index].x -= fr * d.x
             disp[n1.index].y -= fr * d.y
             disp[n2.index].x += fr * d.x
             disp[n2.index].y += fr * d.y
-        }
+        } 
     }
 }
 
-function initUMAP() {
-    const data = generateSwissRoll(1000, 0.1)
-    const {q, p, neighbors, edges} = computeNetwork(data)
+function initUMAP({ nPoints = 1000, noise = 0.1, k = 15, minDist = 0.1, spread = 1, initialization = 'random' } = {}) {
+    const data = generateSwissRoll(nPoints, noise)
+    const {q, p, neighbors, edges} = computeNetwork(data, k, initialization)
+    const { a, b } = computeABParams(minDist, spread)
     //console.log(data)
     return {
         q: q,
         p: p,
         neighbors,
         edges,
-        Q_SIZE
+        Q_SIZE,
+        minDist,
+        spread,
+        initialization,
+        a,
+        b
     }
 }
 
 // export the functions to be used in the visualization
 export {
     initUMAP,
-    conservativeForces
+    conservativeForces,
+    computeABParams
 }

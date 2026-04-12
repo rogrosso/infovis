@@ -215,7 +215,8 @@ function drawThreejsPointCloud(pointCloud) {
 // D
 // 
 /************************************************************************************************************************/
-const dampConst = 10
+const dampConst = 1
+const minDamping = 0.5
 let damping = dampConst
 const lr = 1
 
@@ -295,14 +296,14 @@ function fixPositions(nodes, iW, iH) {
 //  - edges: array of edge objects, each with properties source and target (vertex indices)
 //  - lr: learning rate for the force updates
 //  - disp: array of displacement vectors for each vertex, initialized to zer
-function positionVerletIntegration(vertices, edges, lr, disp) {
+function positionVerletIntegration(vertices, edges, lr, disp, a, b) {
     // this is not here, but anyway
     for (let d of disp) {
         d.x = 0
         d.y = 0
     }
     // conservative forces
-    conservativeForces(vertices, edges, lr, disp)
+    conservativeForces(vertices, edges, lr, disp, a, b)
     // update position, velocity and acceleration
     const w = damping // set damping global 
     const h = 0.008
@@ -322,7 +323,7 @@ function positionVerletIntegration(vertices, edges, lr, disp) {
     }
 }
 
-function drawD3PointCloud(q, edges, Q_SIZE) {
+function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
     // Parameters for the force-directed layout
     let linkG = undefined
     let nodeG = undefined
@@ -416,8 +417,8 @@ function drawD3PointCloud(q, edges, Q_SIZE) {
     // Animation
     function animate() {
         requestAnimationFrame(animate)
-        if (damping > 1) damping *= 0.99
-        positionVerletIntegration(q, edges, lr, disp)
+        if (damping > minDamping) damping *= 0.99
+        positionVerletIntegration(q, edges, lr, disp, a, b)
         fixPositions(q, Q_SIZE, Q_SIZE)
         scaleNetwork(q, vertices, Q_SIZE, iW, iH)
         
@@ -430,15 +431,17 @@ function drawD3PointCloud(q, edges, Q_SIZE) {
 
 } // drawD3PointCloud
 
-export function drawAll() {
+export function drawAll(initOptions = {initialization: 'spectral'}) {
     const {
         q,
         p,
         neighbors,
         edges,
-        Q_SIZE
-    } = initUMAP()
+        Q_SIZE,
+        a,
+        b
+    } = initUMAP(initOptions)
     const pointCloud = normalizePointCloud(p)
     drawThreejsPointCloud(pointCloud)
-    drawD3PointCloud(q, edges, Q_SIZE)
+    drawD3PointCloud(q, edges, Q_SIZE, a, b)
 }
