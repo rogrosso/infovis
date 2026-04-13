@@ -67,6 +67,14 @@
                 The UMAP algorithm works by constructing a high-dimensional simplicial complex from the data and then 
                 finding a low-dimensional representation that preserves the topological structure of the data.
             </p>
+            <h2>Implementation: Position Verlet Integration</h2>
+            <p>
+                The implementation uses a force-directed layout, where nodes are subject to both attraction and repulsion 
+                forces. The multiparticle dynamic system is solved using the Verlet integration method. We include a damping 
+                factor to slow the system and avoid oscillations, allowing it to approach a steady state. The steady state 
+                corresponds to a minimum of the cross-entropy and visualizes the high-dimensional data in a 2D 
+                low-dimensional space.
+            </p>
             <h3>Example</h3>
             <p>
                 The follwing example visualizes Swiss Roll data.
@@ -76,6 +84,15 @@
                 <div id="umap-threejs"></div>
                 <div id="umap-d3js"></div>
             </div>
+            <h2>Standard UMAP Implementation</h2>
+            <p>
+                The following implementation of UMAP is based on the original paper by McInnes and co-workers, which can 
+                be found <a href="https://arxiv.org/abs/1802.03426" target="_blank">here</a>. 
+                The code optimizes the Cross-Entropy loss function using stochastic gradient descent with negative sampling. 
+                The implementation is not optimized for performance, but it is designed to be easy to understand and follow 
+                the original algorithm as closely as possible.
+            </p>
+            <div id="umap-crossentropy"></div>
             <script type="module">
                 import { drawAll } from "umapViz"
                 drawAll()

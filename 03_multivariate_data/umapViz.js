@@ -1,7 +1,8 @@
 import * as d3 from 'd3'
 import * as THREE from 'three'
 import { OrbitControls } from 'OrbitControls'
-import {initUMAP, conservativeForces } from 'umap'
+import {initUMAP, conservativeForces, umapCrossEntropy } from 'umap'
+
 
 function normalizePointCloud(pointCloud) {
     const normalizedPoints = pointCloud.map(point => ({ ...point }))
@@ -215,10 +216,10 @@ function drawThreejsPointCloud(pointCloud) {
 // D
 // 
 /************************************************************************************************************************/
-const dampConst = 1
+const dampConst = 15
 const minDamping = 0.5
 let damping = dampConst
-const lr = 1
+let lr = 10
 
 // Helper function: compute some noise
 function jiggle() {
@@ -325,7 +326,6 @@ function positionVerletIntegration(vertices, edges, lr, disp, a, b) {
 
 function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
     // Parameters for the force-directed layout
-    let linkG = undefined
     let nodeG = undefined
 
     // colors
@@ -365,8 +365,6 @@ function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
         .attr('class', 'umpa-network')
         .attr('transform', `translate(${width / 2}, ${height / 2})`) // the scale function must take into account the translation of the group
 
-    // Line generator
-    const lineGenerator = d3.line().curve(d3.curveBasis)
     // color nodes using the t property, which is the iteration number of the optimization when the point was added to the layout
     const [minT, maxT] = d3.extent(vertices, point => point.t)
     const colorScale = d3.scaleSequential(d3.interpolateTurbo).domain([minT, maxT])
@@ -418,6 +416,7 @@ function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
     function animate() {
         requestAnimationFrame(animate)
         if (damping > minDamping) damping *= 0.99
+        if (lr > 0.9) lr *= 0.999
         positionVerletIntegration(q, edges, lr, disp, a, b)
         fixPositions(q, Q_SIZE, Q_SIZE)
         scaleNetwork(q, vertices, Q_SIZE, iW, iH)
@@ -431,6 +430,93 @@ function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
 
 } // drawD3PointCloud
 
+function drawD3CrossEntropyUMAP(q) {
+    // Parameters for the force-directed layout
+    let nodeG = undefined
+    const radius = 5 // choose a small but still visible radius for the nodes, to avoid too much overlap between them
+    // colors
+    const nodeStrokeWidth = 1.5
+    const selNodeStrokeWidth = 3
+    const nodeStrokeColor = "#ffffff"
+    const selNodeStrokeColor = "#867979"
+
+    // get container dimensions
+    let width = 400
+    let height = 400
+    
+    // compute size for the drawing
+    const margin = { top: 10, right: 10, bottom: 10, left: 10 }
+    const iW = width - margin.left - margin.right
+    const iH = height - margin.top - margin.bottom
+
+    // Init network
+    const vertices = q.map( (v, i) => ({ index: i, x: v.x, y: v.y, t: v.t, r: radius }) )
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    for (let v of vertices) {
+        if (v.x < minX) minX = v.x
+        if (v.x > maxX) maxX = v.x
+        if (v.y < minY) minY = v.y
+        if (v.y > maxY) maxY = v.y
+    }
+    // scale and center network to fit the canvas, to make it more visually appealing
+    // first move to center
+    let meanX = 0
+    let meanY = 0
+    for (let v of vertices) {
+        meanX += v.x
+        meanY += v.y
+    }
+    meanX /= vertices.length
+    meanY /= vertices.length
+    for (let v of vertices) {
+        v.x -= meanX
+        v.y -= meanY
+    }
+    // then scale to fit the canvas
+    const scaleX = iW / (maxX - minX)
+    const scaleY = iH / (maxY - minY)
+    const scale = Math.min(scaleX, scaleY) * 0.8 // add some padding
+    for (let v of vertices) {
+        v.x = v.x * scale
+        v.y = v.y * scale
+    }
+
+    // init Graphic
+    const svg = d3.select('#umap-crossentropy')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background-color', '#f3f4f6')
+        .style('border', 'solid #a0adaf')
+    // add a group for the network
+    const netG = svg
+        .append('g')
+        .attr('class', 'umpa-network')
+        .attr('transform', `translate(${width / 2}, ${height / 2})`) // the scale function must take into account the translation of the group
+
+    // color nodes using the t property, which is the iteration number of the optimization when the point was added to the layout
+    const [minT, maxT] = d3.extent(vertices, point => point.t)
+    const colorScale = d3.scaleSequential(d3.interpolateTurbo).domain([minT, maxT])
+    
+    // add nodes
+    nodeG = netG
+            .append("g")
+            .attr("stroke", nodeStrokeColor)
+            .attr("stroke-width", nodeStrokeWidth)
+            .selectAll("circle")
+            .data(vertices)
+            .join("circle")
+            .attr("r", (d) => d.r)
+            .attr("cx", (d) => d.x)
+            .attr("cy", (d) => d.y)
+            .attr("fill", (d) => colorScale(d.t))
+
+} // drawD3PointCloud
+
+
 export function drawAll(initOptions = {initialization: 'spectral'}) {
     const {
         q,
@@ -441,7 +527,11 @@ export function drawAll(initOptions = {initialization: 'spectral'}) {
         a,
         b
     } = initUMAP(initOptions)
+    // 3D graphic
     const pointCloud = normalizePointCloud(p)
     drawThreejsPointCloud(pointCloud)
+    // 2D svg graphic
+    const vertices = umapCrossEntropy(q, edges, a, b)
     drawD3PointCloud(q, edges, Q_SIZE, a, b)
+    drawD3CrossEntropyUMAP(vertices)
 }
