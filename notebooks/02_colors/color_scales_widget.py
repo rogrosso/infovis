@@ -58,7 +58,7 @@ export async function render({ model, el }) {
     el.appendChild(divElement)
 
     const lesmiserables = model.get('network_data')
-    drawAll('#'+elementId)
+    drawAll(elementId)
 }
 """
 

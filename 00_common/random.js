@@ -2,7 +2,7 @@
 // Implementation adapted from George Marsaglia's 1999 paper:
 // "Multiply-with-carry random number generators"
 // Original algorithm: https://www.cs.wm.edu/~bennett/cs301/spr17/mwc.pdf
-export function random_seed(s) {
+export function random_seed(seed) {
     /**
      * splitmix32 PRNG (seed mixer)
      *
@@ -22,10 +22,10 @@ export function random_seed(s) {
             return (z ^ (z >>> 16)) >>> 0;      // 32-bit unsigned output
         }
     }
-    const s = splitmix32(s)
-    const m_w = s()
-    const m_z = s()
-
+    const s = splitmix32(seed)
+    let m_w = s()
+    let m_z = s()
+    const mask = 0xffffffff
     return function () {
         m_z = (36969 * (m_z & 65535) + (m_z >>> 16)) & mask
         m_w = (18000 * (m_w & 65535) + (m_w >>> 16)) & mask
