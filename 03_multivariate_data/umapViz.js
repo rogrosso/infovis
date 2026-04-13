@@ -219,7 +219,7 @@ function drawThreejsPointCloud(pointCloud) {
 const dampConst = 15
 const minDamping = 0.5
 let damping = dampConst
-let lr = 10
+let lr = 20
 
 // Helper function: compute some noise
 function jiggle() {
