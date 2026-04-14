@@ -1,4 +1,13 @@
 import { kdTreeFactory } from 'kdTree'
+import { 
+    dot,
+    normalize,
+    dot2D,
+    norm2D,
+    normalize2D,
+    keyCantor
+} from 'utilities'
+
 // In this implementation of UMAP we follow the notation given in the literature
 // P = the distribution in the high-dimensional space, which gives the probability that two points are connected
 // Q = the distribution in the low-dimensional space, which gives the probability that two points are connected
@@ -371,8 +380,37 @@ function computeNetwork(vertices, k = 15, initialization = 'random') {
 
 // Compute sigma for the distribution P in high-dimensional space 
 // Apparently, the function is well behaved, we implement a bisection method for the search.
-function computeSigma(nn, rho, k) {
-
+function computeSigma(nn, rho) {
+    const k = nn.length
+    const log2k = Math.log2(k)
+    const tinny = 1e-14
+    const epsilon = 1e-5
+    let low = 0
+    let high = Infinity
+    let mid = 1
+    while (Math.abs(high - low) > epsilon) {
+        // compute the sum of the probabilities for the current sigma
+        let sum = 0
+        for (let n of nn) {
+            const d = n.distance - rho
+            sum += Math.exp(-Math.max(0, d) / (mid + tinny))
+        }
+        if (sum > log2k) {
+            high = mid
+            mid = (low + mid) / 2
+        } else {
+            low = mid
+            // guard: high sitll at infinity, we need to increase mid exponentially to find an upper bound
+            if (high === Infinity) {
+                mid *= 2
+            } else {
+                mid = (mid + high) / 2
+            }
+        }
+    }
+    
+    if (mid < tinny) return tinny
+    else return mid
 }
 
 // In this implementation of UMAP each edge is unique and considered to be symmetric. 
@@ -387,72 +425,33 @@ function computeEdges(neighbors) {
         const rho = nn[0].distance // distance to the closest neighbor
         // compute sigma using binary search to satisfy the condition that the sum of the probabilities is equal to log2(k)
         const sigma = computeSigma(nn, rho, k)
-
-        // compute sigma using binary search to satisfy the condition that the sum of the probabilities is equal 
-        // to log2(k)
-        let sum = 0
-        let low = 0
-        let high = Infinity
-        let mid = 1
-        let sigma = mid
-        const log2k = Math.log2(k)
-        const tinny = 1e-14
-        while (Math.abs(high - low) > 1e-5) {
-            sum = 0
-            for (let i = 0; i < k; i++) {
-                const d = nn[i].distance - rho
-                if (d > 0) {
-                    sum += Math.exp(-d / (sigma+tinny))
-                } else {
-                    sum += 1
-                }
-            }
-            if (sum > log2k) {
-                high = mid
-                mid = (low + mid) / 2
-            } else {
-                low = mid
-                if (high === Infinity) {
-                    mid *= 2
-                } else {
-                    mid = (mid + high) / 2
-                }
-            }
-            sigma = mid
+        // compute weights
+        for (let n of nn) {
+            const d = n.distance - rho
+            n.weight = Math.exp(-Math.max(0, d) / sigma)
         }
-        n.rho = rho
-        if (sigma < tinny) sigma = tinny
-        n.sigma = sigma
-        // compute edge weights based on the distances between points
-        for (let i = 0; i < k; i++) {
-            const d = nn[i].distance - rho
-            let weight = 0
-            if (d > 0) {
-                weight = Math.exp(-d / sigma)
-            } else {
-                weight = 1
-            }
-            nn[i].weight = weight
-        }
+        nn.rho = rho
+        nn.sigma = sigma
     }
-    // Make the weights symmetric: w_ij = w_ji = w_ij + w_ji - w_ij * w_ji
+    // Symmetrize the weights: w_ij = w_ji = w_ij + w_ji - w_ij * w_ji
+    // Compute unique weighted edges 
     const edgeMap = new Map()
     for (let n of neighbors) {
         const i = n.index
         for (let nn of n.nn) {
             const j = nn.index
             const w_ij = nn.weight
-            const key = i < j ? `${i}-${j}` : `${j}-${i}`
-            if (!edgeMap.has(key)) {
+            const key = keyCantor(i, j)
+            if (!edgeMap.has(key)) { // the edge has not been added yet, add it with the current weight
                 edgeMap.set(key, {source: i, target: j, distance: nn.distance, weight: w_ij})
-            } else {
+            } else { // the edge already exists, update the weight using the formula w_ij = w_ij + w_ji - w_ij * w_ji
                 const edge = edgeMap.get(key)
                 edge.weight = edge.weight + w_ij - edge.weight * w_ij
             }
         }
     }
+    // return the unique edges as an array
     return Array.from(edgeMap.values()) 
-
 }
 
 // Classic UMAP optimization
