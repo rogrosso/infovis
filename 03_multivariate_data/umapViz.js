@@ -1,7 +1,7 @@
 import * as d3 from 'd3'
 import * as THREE from 'three'
 import { OrbitControls } from 'OrbitControls'
-import {initUMAP, conservativeForces, umapCrossEntropy } from 'umap'
+import {initUMAP, collision, umapCrossEntropy, umapForces } from 'umap'
 
 
 function normalizePointCloud(pointCloud) {
@@ -216,10 +216,12 @@ function drawThreejsPointCloud(pointCloud) {
 // D
 // 
 /************************************************************************************************************************/
-const dampConst = 15
-const minDamping = 0.5
+const dampConst = 1
+const minDamping = 0.1
 let damping = dampConst
-let lr = 20
+const ll_ = 20
+const minLr = 0.1
+let lr = ll_
 
 // Helper function: compute some noise
 function jiggle() {
@@ -230,13 +232,14 @@ function jiggle() {
 // so we need to scale the forces to make the layout more spread out and visually appealing
 // We use two set of nodes, one for simulation and the other for visualization, to avoid to modify the position of the 
 // nodes in the simulation, which are used to compute the forces
+let s_ = 1
 function scaleNetwork(q, vertices, Q_SIZE, width, height) {
-    const alpha = Math.max(width, height) / Q_SIZE
+    s_ = 0.7 * Math.max(width, height) / Q_SIZE
     const centerX = 0 // (width - 1) / 2 the canvas is translated by (width / 2, height / 2), so the center of the layout must be at (0, 0) in the simulation coordinates
     const centerY = 0 //(height - 1) / 2
     for (let i = 0; i < vertices.length; i++) {
-        vertices[i].x = q[i].x * alpha + centerX
-        vertices[i].y = q[i].y * alpha + centerY
+        vertices[i].x = q[i].x * s_ + centerX
+        vertices[i].y = q[i].y * s_ + centerY
     }
 }
 
@@ -304,15 +307,23 @@ function positionVerletIntegration(vertices, edges, lr, disp, a, b) {
         d.y = 0
     }
     // conservative forces
-    conservativeForces(vertices, edges, lr, disp, a, b)
+    // conservativeForces(vertices, edges, lr, disp, a, b)
+    umapForces(vertices, edges, a, b, disp)
+    //collision(1.1, 0.5, 0.01, vertices, disp)
+    // cool down the optimization
+    for (let d in disp) {
+        disp[d].x *= lr
+        disp[d].y *= lr
+    }
+    
     // update position, velocity and acceleration
     const w = damping // set damping global 
     const h = 0.008
     for (let v of vertices) {
         const xprev = v.xprev
         const yprev = v.yprev
-        const fx = disp[v.index].x - w * v.vx + jiggle() // add some noise
-        const fy = disp[v.index].y - w * v.vy + jiggle() // add some noise
+        const fx = disp[v.index].x - w * v.vx //+ jiggle() // add some noise
+        const fy = disp[v.index].y - w * v.vy //+ jiggle() // add some noise
         const dx = (v.x - xprev) + fx * h * h
         const dy = (v.y - yprev) + fy * h * h
         v.xprev = v.x
@@ -391,6 +402,7 @@ function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
         
     function dragstarted(event, d) {
         damping = dampConst
+        lr = (ll_ + minLr) / 3
         d3.select(this)
             .attr("stroke", selNodeStrokeColor)
             .attr("stroke-width", selNodeStrokeWidth)
@@ -399,12 +411,12 @@ function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
         // The possition have to be transformed back to the simulation coordinates, 
         // to update the position of the node in the simulation, which is used to compute the forces
         // translate to origin and down scale to simulation coordinates
-        const scale = Q_SIZE / Math.max(iW, iH)
+        
         const qIndex = d.index
-        q[qIndex].x = event.x * scale
-        q[qIndex].y = event.y * scale
-        //event.subject.x = event.x
-        //event.subject.y = event.y
+        q[d.index].x = event.x / s_
+        q[d.index].y = event.y / s_
+        event.subject.x = event.x
+        event.subject.y = event.y
     }
     function dragend(event, d) {
         d3.select(this)
@@ -416,9 +428,9 @@ function drawD3PointCloud(q, edges, Q_SIZE, a, b) {
     function animate() {
         requestAnimationFrame(animate)
         if (damping > minDamping) damping *= 0.99
-        if (lr > 0.9) lr *= 0.999
+        if (lr > 0.1) lr *= 0.999
         positionVerletIntegration(q, edges, lr, disp, a, b)
-        fixPositions(q, Q_SIZE, Q_SIZE)
+        //fixPositions(q, Q_SIZE, Q_SIZE)
         scaleNetwork(q, vertices, Q_SIZE, iW, iH)
         
         // redraw nodes
@@ -517,13 +529,15 @@ function drawD3CrossEntropyUMAP(q) {
 } // drawD3PointCloud
 
 
-export function drawAll(initOptions = {initialization: 'spectral'}) {
+export function drawAll(initOptions = {minDist: 0.3, spread: 1.2, initialization: 'spectral'}) {
     const {
         q,
         p,
         neighbors,
         edges,
-        Q_SIZE,
+        minDist,
+        spread,
+        initialization,
         a,
         b
     } = initUMAP(initOptions)
@@ -532,6 +546,19 @@ export function drawAll(initOptions = {initialization: 'spectral'}) {
     drawThreejsPointCloud(pointCloud)
     // 2D svg graphic
     const vertices = umapCrossEntropy(q, edges, a, b)
-    drawD3PointCloud(q, edges, Q_SIZE, a, b)
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+    for (let v of vertices) {
+        if (v.x < minX) minX = v.x
+        if (v.x > maxX) maxX = v.x
+        if (v.y < minY) minY = v.y
+        if (v.y > maxY) maxY = v.y
+    }
+    const spanX = maxX - minX
+    const spanY = maxY - minY
+    const Q_SIZE_ = Math.max(spanX, spanY) * 1.2 // add some padding to make it more visually appealing
+    drawD3PointCloud(q, edges, Q_SIZE_, a, b)
     drawD3CrossEntropyUMAP(vertices)
 }

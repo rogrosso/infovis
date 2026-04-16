@@ -60,7 +60,8 @@ function distance(n1, n2) {
     return Math.sqrt(dx * dx + dy * dy + dz * dz)
 }
 // For performance introduce an Euclidean distance for the low-dimensional space, which is used in the optimization.
-// pCompute the direction from n1 to n2, and the distance between them.
+// Compute the direction from n1 to n2, and the distance between them.
+// In case of zero distance, introduce a small random perturbation to avoid numerical instability in the optimization process.
 function distance2D(n1, n2) {
     let dx = n2.x - n1.x
     let dy = n2.y - n1.y
@@ -461,72 +462,21 @@ function umapCrossEntropy(q, edges, a, b) {
     const N = vertices.length
     const epsilon = 1e-4 // small value to avoid division by zero in the repulsive force computation
     const M = 5 // number of negative samples to draw for each attractive edge update
-    const mxIterations = 500
+    const mxIterations = 600
     const disp = new Array(N).fill(null).map(() => ({x: 0, y: 0}))
     let lr = 1
     for (let iteration = 0; iteration < mxIterations; iteration++) {
-        const alpha = lr * (1 - iteration / mxIterations)
-        for (let e of edges) {
-            const source = vertices[e.source]
-            const target = vertices[e.target]
-            const weight = e.weight
-            const d = distance2D(source, target)
-            const distanceSquared = Math.max(d.d ** 2, epsilon)
-            const distancePower = distanceSquared ** (b - 1)
-            const c = 2 * a * b * weight * distancePower / (1 + a * distanceSquared ** b)
-            const dx = c * d.x * d.d
-            const dy = c * d.y * d.d
-
-            // hey, weighting twice with alpha! This is wrong
-            disp[source.index].x += dx
-            disp[source.index].y += dy
-            disp[target.index].x -= dx
-            disp[target.index].y -= dy
-            // Negative sampling is tied to positive edges, not to vertices globally.
-            for (let sample = 0; sample < M; sample++) {
-                let randomIndex = source.index
-                while (randomIndex === source.index || randomIndex === target.index) {
-                    randomIndex = Math.floor(Math.random() * N)
-                }
-                const negative = vertices[randomIndex]
-                const negDistance = distance2D(source, negative)
-                const negDx = negDistance.x * negDistance.d
-                const negDy = negDistance.y * negDistance.d
-                const negD = Math.max(negDistance.d ** 2, epsilon)
-                const cNeg = (weight / M) * (2 * b / (negD * (1 + a * negD ** b)))
-                // Negative samples act as one-sided SGD updates for the source node.
-                disp[source.index].x -= cNeg * negDx
-                disp[source.index].y -= cNeg * negDy
-            }
-            // add a collision force to avoid points to be too close to each other in the low-dimensional space, which can
-            const beta = 1.5 // two times the sum of the radii of the points is the distance at which the collision force starts to be applied
-            const alpha = 0.5 //100 // strength of the collision force
-            const eps = 0.01 // small value to avoid division by zero in the collision force computation
-            const s = beta * (source.r + target.r)
-            const r = d.d - s 
-            const decay = 15
-            if (r < 0) { 
-                // if the distance between the points is less than the augmented sum of their radii, 
-                // apply a repulsive force to push them apart
-                const fr = (d.d > eps) ? alpha * s / d.d : alpha * s / eps
-                disp[source.index].x -= fr * d.x
-                disp[source.index].y -= fr * d.y
-                disp[target.index].x += fr * d.x
-                disp[target.index].y += fr * d.y
-            } else if (r < s) {
-                // if there is no collision, keep a weak repulsive force that decays quickly with distance
-                const fr = alpha * Math.exp(-decay*r/s)
-                disp[source.index].x -= fr * d.x
-                disp[source.index].y -= fr * d.y
-                disp[target.index].x += fr * d.x
-                disp[target.index].y += fr * d.y
-            } 
-        }
+        // process all positive edges, positive means the attractive forces
+        umapForces(vertices, edges, a, b, disp)
+        collision(1.1, 0.01, 0.01, vertices, edges, disp)
         // update positions based on the computed forces
+        const llr = lr * (1 - iteration / mxIterations) // linear learning rate decay
         for (let v of vertices) {
             // do not forget to multiply the forces by the learning rate to slow down the optimization process and allow it to converge to a steady state
-            v.x += alpha * disp[v.index].x
-            v.y += alpha * disp[v.index].y
+            v.x += llr * disp[v.index].x
+            v.y += llr * disp[v.index].y
+            //v.x += disp[v.index].x
+            //v.y += disp[v.index].y
             disp[v.index].x = 0
             disp[v.index].y = 0
         }
@@ -534,79 +484,50 @@ function umapCrossEntropy(q, edges, a, b) {
     return vertices
 }
 
-// compute layout using UMAP, which is based on stochastic gradient descent to optimize the low-dimensional embedding
-function conservativeForces(vertices, edges, lr, disp, a = 1, b = 1) {
+function umapForces(vertices, edges, a, b, disp) {
     const N = vertices.length
+    const M = 5
     const epsilon = 1e-4 // small value to avoid division by zero in the repulsive force computation
-    const M = 5 // number of negative samples to draw for each attractive edge update
-    // for each edge update displacemnet vector
     for (let e of edges) {
         const source = vertices[e.source]
         const target = vertices[e.target]
         const weight = e.weight
         const d = distance2D(source, target)
-        const distanceSquared = Math.max(d.d ** 2, epsilon)
-        const distancePower = distanceSquared ** (b - 1)
-        const c = 2 * a * b * weight * distancePower / (1 + a * distanceSquared ** b)
-        const dx = c * d.x * d.d
-        const dy = c * d.y * d.d
+        const fa = 2 * a * b * weight * d.d**(2*b-1) / (1 + a * d.d**(2 * b))
 
-        disp[source.index].x += lr * dx
-        disp[source.index].y += lr * dy
-        disp[target.index].x -= lr * dx
-        disp[target.index].y -= lr * dy
-        // Negative sampling is tied to positive edges, not to vertices globally.
+        // hey, weighting twice with alpha! This is wrong
+        disp[source.index].x += fa * d.x
+        disp[source.index].y += fa * d.y
+        disp[target.index].x -= fa * d.x
+        disp[target.index].y -= fa * d.y
+
+        // For each positive edge, randomly select M negative samples and apply repulsive forces to the source node 
         for (let sample = 0; sample < M; sample++) {
-            let randomIndex = source.index
+            let randomIndex = Math.floor(Math.random() * N) //source.index
+            // choose sample distinct from source and target
             while (randomIndex === source.index || randomIndex === target.index) {
                 randomIndex = Math.floor(Math.random() * N)
             }
-            const negative = vertices[randomIndex]
-            const negDistance = distance2D(source, negative)
-            const negDx = negDistance.x * negDistance.d
-            const negDy = negDistance.y * negDistance.d
-            const negD = Math.max(negDistance.d ** 2, epsilon)
-            const cNeg = (weight / M) * (2 * b / (negD * (1 + a * negD ** b)))
-            // Negative samples act as one-sided SGD updates for the source node.
-            disp[source.index].x -= lr * cNeg * negDx
-            disp[source.index].y -= lr * cNeg * negDy
+            const dist = distance2D(source, vertices[randomIndex]) // negative distance
+            //const fr = (weight/M) * 2 * b / (Math.max(dist.d,epsilon) * (1 + a * dist.d ** (2 * b)))
+            const fr = (weight / M) * (2 * b / ((dist.d**2 + epsilon) * (1 + a * dist.d ** (2 * b))))
+            disp[source.index].x -= fr * dist.x * dist.d
+            disp[source.index].y -= fr * dist.y * dist.d
         }
     }
-    // Apply collision forces to avoid points to be too close to each other in the low-dimensional space, which can cause 
-    // numerical instability in the optimization process
-    const beta = 1. // two times the sum of the radii of the points is the distance at which the collision force starts to be applied
-    const alpha = 0.9 //100 // strength of the collision force
-    const eps = 0.01 // small value to avoid division by zero in the collision force computation
-    collisionForces(beta, alpha, eps, vertices, edges, disp)
 }
 
-// introduce a collision force to avoid points to be too close to each other in the low-dimensional space, which can 
-// cause numerical instability in the optimization process
-// Consider only vertices connected by an UMA edge
-function collisionForces(beta, alpha, eps, vertices, edges,disp) {
+function collision(beta, alpha, eps, vertices, edges, disp) {
+    const N = vertices.length
     for (let e of edges) {
         const n1 = vertices[e.source]
         const n2 = vertices[e.target]
-        const d = distance2D(n1, n2) // vector pointing from node n1 to node n2
-        const s = beta * (n1.r + n2.r)
-        const r = d.d - s 
-        const decay = 15
-        if (r < 0) { 
-            // if the distance between the points is less than the augmented sum of their radii, 
-            // apply a repulsive force to push them apart
-            const fr = (d.d > eps) ? alpha * s / d.d : alpha * s / eps
-            disp[n1.index].x -= fr * d.x
-            disp[n1.index].y -= fr * d.y
-            disp[n2.index].x += fr * d.x
-            disp[n2.index].y += fr * d.y
-        } else if (r < s) {
-            // if there is no collision, keep a weak repulsive force that decays quickly with distance
-            const fr = alpha * Math.exp(-decay*r/s)
-            disp[n1.index].x -= fr * d.x
-            disp[n1.index].y -= fr * d.y
-            disp[n2.index].x += fr * d.x
-            disp[n2.index].y += fr * d.y
-        } 
+        const d = distance2D(n1, n2)
+        const fr = alpha / (Math.max(d.d**2, eps))
+        disp[n1.index].x -= fr * d.x
+        disp[n1.index].y -= fr * d.y
+        disp[n2.index].x += fr * d.x
+        disp[n2.index].y += fr * d.y
     }
 }
 
@@ -620,7 +541,6 @@ function initUMAP({ nPoints = 1000, noise = 0.1, k = 15, minDist = 0.1, spread =
         p: p,
         neighbors,
         edges,
-        Q_SIZE,
         minDist,
         spread,
         initialization,
@@ -632,7 +552,8 @@ function initUMAP({ nPoints = 1000, noise = 0.1, k = 15, minDist = 0.1, spread =
 // export the functions to be used in the visualization
 export {
     initUMAP,
-    conservativeForces,
     computeABParams,
-    umapCrossEntropy
+    collision,
+    umapCrossEntropy,
+    umapForces
 }
