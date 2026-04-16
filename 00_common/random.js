@@ -2,7 +2,7 @@
 // Implementation adapted from George Marsaglia's 1999 paper:
 // "Multiply-with-carry random number generators"
 // Original algorithm: https://www.cs.wm.edu/~bennett/cs301/spr17/mwc.pdf
-export function random_seed(seed) {
+export function mwcRandomFactory(seed) {
     /**
      * splitmix32 PRNG (seed mixer)
      *
@@ -62,7 +62,7 @@ export function normalRandomFactory(seed, m_, s_) {
     const mu = m_
     const sigma = s_
     const pi2 = 2 * Math.PI
-    const random = random_seed(seed)
+    const random = mwcRandomFactory(seed)
     return function( ) {
         let u1 = 1 - random()
         let u2 = random()

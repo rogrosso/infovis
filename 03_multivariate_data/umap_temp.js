@@ -1,12 +1,7 @@
 import { kdTreeFactory } from 'kdTree'
-import { 
-    dot,
-    normalize,
-    dot2D,
-    norm2D,
-    normalize2D,
-    keyCantor
-} from 'utilities'
+import { keyCantor } from 'utilities'
+
+import { mwcRandomFactory } from 'random'
 
 // In this implementation of UMAP we follow the notation given in the literature
 // P = the distribution in the high-dimensional space, which gives the probability that two points are connected
@@ -25,21 +20,22 @@ const radius = Q_SIZE / 100
 
 // Data set Swiss Roll
 function generateSwissRoll(nPoints = 500, noise = 0.05) {
+    const rnd = mwcRandomFactory(23)
     const data = []
     for (let i = 0; i < nPoints; i++) {
         // t determines the position along the spiral
-        const t = 1.5 * Math.PI * (1 + 2 * Math.random())
+        const t = 1.5 * Math.PI * (1 + 2 * rnd())
         // w determines the width (the height of the roll)
-        const w = 20 * Math.random()
+        const w = 20 * rnd()
 
         const x = t * Math.cos(t)
         const y = w
         const z = t * Math.sin(t)
 
         // Add some Gaussian-like noise
-        const nx = x + (Math.random() - 0.5) * noise
-        const ny = y + (Math.random() - 0.5) * noise
-        const nz = z + (Math.random() - 0.5) * noise
+        const nx = x + (rnd() - 0.5) * noise
+        const ny = y + (rnd() - 0.5) * noise
+        const nz = z + (rnd() - 0.5) * noise
 
         data.push({
             x: nx, // use naming convention for points used in kd-tree
@@ -62,99 +58,204 @@ function distance(n1, n2) {
 // For performance introduce an Euclidean distance for the low-dimensional space, which is used in the optimization.
 // Compute the direction from n1 to n2, and the distance between them.
 // In case of zero distance, introduce a small random perturbation to avoid numerical instability in the optimization process.
+const d_rnd = mwcRandomFactory(10)
 function distance2D(n1, n2) {
     let dx = n2.x - n1.x
     let dy = n2.y - n1.y
     let d = Math.sqrt(dx * dx + dy * dy)
     if (d === 0) {
-        dx = (Math.random() - 0.5) * 1e-4
-        dy = (Math.random() - 0.5) * 1e-4
+        dx = (d_rnd() - 0.5) * 1e-4
+        dy = (d_rnd() - 0.5) * 1e-4
         d = Math.sqrt(dx * dx + dy * dy)
     }
     return { x: dx / d, y: dy / d, d: d }
 }
 
-function lowDimensionalSimilarity(distance, a, b) {
+function targetSimilarity(d, minDist, spread) {
+    if (d <= minDist) return 1
+    return Math.exp(-(d - minDist) / spread)
+}
+
+function lowDimSimilarity(distance, a, b) {
     return 1 / (1 + a * distance ** (2 * b))
 }
 
-function umapFitTarget(distance, minDist, spread) {
-    if (distance <= minDist) return 1
-    return Math.exp(-(distance - minDist) / spread)
-}
-
-function computeABParams(minDist = 0.1, spread = 1) {
-    const safeMinDist = Math.max(0, minDist)
-    const safeSpread = Math.max(spread, 1e-6)
-    const maxDistance = Math.max(3 * safeSpread + safeMinDist, 3 * safeSpread, 1)
-    const sampleCount = 256
-    const distances = new Array(sampleCount)
-    const target = new Array(sampleCount)
-
-    for (let i = 0; i < sampleCount; i++) {
-        const distance = maxDistance * i / (sampleCount - 1)
-        distances[i] = distance
-        target[i] = umapFitTarget(distance, safeMinDist, safeSpread)
-    }
-
-    function fitError(a, b) {
+function fitTargetSimilarity(minDist = 0.1, spread = 1) {
+    const minD_ = Math.max(0, minDist)
+    const spread_ = Math.max(spread, 1e-4)
+    const maxD_ = Math.max(3 * spread_ + minD_, 1)
+    const nrSamples = 300
+    // generate sample distances
+    const distances = new Array(nrSamples).fill(null).map((_, i) => i / (nrSamples - 1) * maxD_)
+    const targets = distances.map(d => targetSimilarity(d, minD_, spread_))
+    
+    // error functional
+    function error(d, t, a, b) {
         let error = 0
-        for (let i = 0; i < sampleCount; i++) {
-            const diff = lowDimensionalSimilarity(distances[i], a, b) - target[i]
+        const nr_ = d.length
+        for (let i = 0; i < nr_; i++) {
+            const diff = lowDimSimilarity(d[i], a, b) - t[i]    
             error += diff * diff
         }
         return error
     }
-
-    let bestA = 1
-    let bestB = 1
-    let bestError = Infinity
-
-    const coarseALogMin = -2
-    const coarseALogMax = 2
-    const coarseASteps = 25
-    const coarseBMin = 0.25
-    const coarseBMax = 3
-    const coarseBSteps = 24
-    for (let i = 0; i < coarseASteps; i++) {
-        const tA = i / (coarseASteps - 1)
-        const a = 10 ** (coarseALogMin + tA * (coarseALogMax - coarseALogMin))
-        for (let j = 0; j < coarseBSteps; j++) {
-            const tB = j / (coarseBSteps - 1)
-            const b = coarseBMin + tB * (coarseBMax - coarseBMin)
-            const error = fitError(a, b)
-            if (error < bestError) {
-                bestA = a
-                bestB = b
-                bestError = error
+    // grid search for a and b
+    let a_ = 1
+    let b_ = 1
+    let e_ = Infinity
+    // Search range for a: [0.01, 100], logarithmic scale: [-2, 2]
+    // Search range for b: [0.25, 3]
+    const aValues = new Array(25).fill(null).map((_, i) => 10 ** (-2 + 4 * i / 24))
+    const bValues = new Array(24).fill(null).map((_, i) => 0.25 + 2.75 * i / 23)
+    for (let a of aValues) {
+        for (let b of bValues) {
+            const e = error(distances, targets, a, b)
+            if (e < e_) {
+                a_ = a
+                b_ = b
+                e_ = e
+            }
+        }
+    }
+    // Refine search around the best values found in the coarse search
+    const aValuesRefined = new Array(41).fill(null).map((_, i) => 10 ** (Math.log10(a_) - 0.5 + i / 40))
+    const bValuesRefined = new Array(41).fill(null).map((_, i) => Math.max(0.05, b_ - 0.5) + 1 * i / 40)
+    for (let a of aValuesRefined) {
+        for (let b of bValuesRefined) {
+            const e = error(distances, targets, a, b)
+            if (e < e_) {
+                a_ = a
+                b_ = b
+                e_ = e
             }
         }
     }
 
-    const refineALogCenter = Math.log10(bestA)
-    const refineALogSpan = 0.5
-    const refineASteps = 41
-    const refineBMin = Math.max(0.05, bestB - 0.5)
-    const refineBMax = bestB + 0.5
-    const refineBSteps = 41
-    for (let i = 0; i < refineASteps; i++) {
-        const tA = i / (refineASteps - 1)
-        const a = 10 ** (refineALogCenter - refineALogSpan + 2 * refineALogSpan * tA)
-        for (let j = 0; j < refineBSteps; j++) {
-            const tB = j / (refineBSteps - 1)
-            const b = refineBMin + tB * (refineBMax - refineBMin)
-            const error = fitError(a, b)
-            if (error < bestError) {
-                bestA = a
-                bestB = b
-                bestError = error
-            }
-        }
-    }
-
-    return { a: bestA, b: bestB }
+    return { a: a_, b: b_ }
 }
 
+function normalize(v) {
+    let sz_ = 0
+    for (let e of v) sz_ += e * e
+    sz_ = Math.sqrt(sz_)
+    if (sz_ < 1e-12) {
+        return v.map(() => 0)
+    } else {
+        for (let i = 0; i < v.length; i++) v[i] /= sz_
+    }
+}
+function dot(v1, v2) {
+    let d = 0
+    for (let i = 0; i < v1.length; i++) d += v1[i] * v2[i]
+    return d
+}
+
+function spectralEmbedding(vertices, edges) {
+    // compute M = I - D^(-1/2) A D^(-1/2), where A is the adjacency matrix and D is the degree matrix
+    const nr_ = vertices.length
+    // compute the degree of matrix
+    const D = new Array(nr_).fill(0)
+    for (let e of edges) {
+        D[e.source] += e.weight
+        D[e.target] += e.weight
+    }
+    // compute the normalized adjacency matrix D^(-1/2) A D^(-1/2)
+    // use a sparse representation
+    const w = new Array(nr_).fill(null).map(() => [])
+    for (let e of edges) {
+        const w_ij = e.weight / Math.sqrt(D[e.source] * D[e.target])
+        w[e.source].push({ index: e.target, weight: w_ij })
+        w[e.target].push({ index: e.source, weight: w_ij })
+    }
+    // compute the first fixed eigenvector of M with eigenvalue 1
+    const v0 = new Array(nr_).fill(0).map((_, i) => Math.sqrt(D[i]))  
+    normalize(v0)
+
+    // initialize eigenvectors with seeded random values to ensure reproducibility
+    const rnd = mwcRandomFactory(42)
+    const v1 = new Array(nr_).fill(0).map(() => (rnd()-0.5))
+    const v2 = new Array(nr_).fill(0).map(() => (rnd()-0.5))
+    normalize(v1)
+    normalize(v2)
+
+    // power iteration to compute the second and third eigenvectors
+    const mv1 = new Array(nr_).fill(0)
+    const mv2 = new Array(nr_).fill(0)
+    const maxIterations = 500
+    let iter = 0
+    let error = 1
+    const epsilon = 1e-6
+    while (iter++ < maxIterations && error > epsilon) {
+        // compute M v1 and M v2
+        for (let i = 0; i < nr_; i++) {
+            for (let n of w[i]) {
+                mv1[i] += n.weight * v1[n.index]
+                mv2[i] += n.weight * v2[n.index]
+            }
+        }
+        // orthogonalize to v0
+        const dot1 = dot(mv1, v0)
+        const dot2 = dot(mv2, v0)
+        for (let i = 0; i < nr_; i++) {
+            mv1[i] -= dot1 * v0[i]
+            mv2[i] -= dot2 * v0[i]
+        }
+        // orthogonalize to each other
+        const dot12 = dot(mv1, mv2)
+        const dot11 = dot(mv1, mv1)
+        for (let i = 0; i < nr_; i++) {
+            mv2[i] -= dot12 / dot11 * mv1[i]
+        }
+        // normalize
+        normalize(mv1)
+        normalize(mv2)
+        // error is the sum of the changes in the eigenvectors
+        let err1 = 0
+        let err2 = 0
+        for (let i = 0; i < nr_; i++) {
+            err1 += (mv1[i] - v1[i]) ** 2
+            err2 += (mv2[i] - v2[i]) ** 2
+            v1[i] = mv1[i]
+            v2[i] = mv2[i]
+            mv1[i] = 0
+            mv2[i] = 0
+        }
+        error = Math.max(err1, err2)
+    }
+    
+    // denormalize the eigenvectors to have the same scale as the original data
+    for (let i = 0; i < nr_; i++) {
+        v1[i] /= Math.sqrt(D[i])
+        v2[i] /= Math.sqrt(D[i])
+    
+    }
+    // scale to fit in the Q_SIZE
+    // 1. center the data at the origin
+    // 2. scale to fit in the Q_SIZE
+    let maxx = -Infinity
+    let minx = Infinity
+    let maxy = -Infinity
+    let miny = Infinity
+    for (let i = 0; i < nr_; i++) {
+        if (v1[i] > maxx) maxx = v1[i]
+        if (v1[i] < minx) minx = v1[i]
+        if (v2[i] > maxy) maxy = v2[i]
+        if (v2[i] < miny) miny = v2[i]
+    }
+    const centerx = (maxx + minx) / 2
+    const centery = (maxy + miny) / 2
+    const maxSz = Math.max(maxx - minx, maxy - miny)
+    const distWall = 5 * radius
+    const s_ = (Q_SIZE - distWall) / Math.max(maxSz, 1e-12)
+    for (let i = 0; i < nr_; i++) {
+        v1[i] = (v1[i] - centerx) * s_
+        v2[i] = (v2[i] - centery) * s_
+    }
+
+    // return the embedding as an array of points with x and y coordinates
+    return new Array(nr_).fill(null).map((_, i) => ({index: i, x: v1[i], y: v2[i], r: radius, t: vertices[i].t}))
+}
+// =====================================================================
 function checkIndex(knn, index) {
     return knn.some(n => n.index === index);
 }
@@ -178,10 +279,11 @@ function orthogonalizeVector(vector, basis) {
 }
 
 function createRandomEmbedding(vertices) {
+    const rnd = mwcRandomFactory(1997)
     const q = new Array(vertices.length).fill(null).map(() => ({index: -1, x: 0, y: 0, r: 0}))
     for (let v of vertices) {
-        q[v.index].x = Q_SIZE * (Math.random() - 0.5)
-        q[v.index].y = Q_SIZE * (Math.random() - 0.5)
+        q[v.index].x = Q_SIZE * (rnd() - 0.5)
+        q[v.index].y = Q_SIZE * (rnd() - 0.5)
         q[v.index].index = v.index
         q[v.index].r = radius
         q[v.index].t = v.t
@@ -346,7 +448,16 @@ function computeNetwork(vertices, k = 15, initialization = 'random') {
     // compute edge weights based on the distances between points
     const edges = computeEdges(neighbors)
 
-    const q = createInitialEmbedding(vertices, edges, initialization)
+    // measure time
+    const startTime = performance.now()
+    const q = spectralEmbedding(vertices, edges)
+    const endTime = performance.now()
+    console.log(`Spectral embedding computed in ${(endTime - startTime).toFixed(2)} ms`)
+    // second method
+    const startTime2 = performance.now()
+    const q1 = createInitialEmbedding(vertices, edges, initialization)
+    const endTime2 = performance.now()
+    console.log(`Initial embedding computed in ${(endTime2 - startTime2).toFixed(2)} ms`)
 
     // Scale the embedding to avoid to strong attracting forces at the beginning of the iteration 
     // 1. compute mean position of the embedding
@@ -457,6 +568,7 @@ function computeEdges(neighbors) {
 
 // Classic UMAP optimization
 // Optimize the cross-entropy as in the classic implementation of UMAP, useing umap-learn as reference
+const rnd_ = mwcRandomFactory(18)
 function umapCrossEntropy(q, edges, a, b) {
     const vertices = new Array(q.length).fill(null).map((_, i) => ({index: i, x: q[i].x, y: q[i].y, r: radius, t: q[i].t}))
     const N = vertices.length
@@ -503,10 +615,10 @@ function umapForces(vertices, edges, a, b, disp) {
 
         // For each positive edge, randomly select M negative samples and apply repulsive forces to the source node 
         for (let sample = 0; sample < M; sample++) {
-            let randomIndex = Math.floor(Math.random() * N) //source.index
+            let randomIndex = Math.floor(rnd_() * N) //source.index
             // choose sample distinct from source and target
             while (randomIndex === source.index || randomIndex === target.index) {
-                randomIndex = Math.floor(Math.random() * N)
+                randomIndex = Math.floor(rnd_() * N)
             }
             const dist = distance2D(source, vertices[randomIndex]) // negative distance
             //const fr = (weight/M) * 2 * b / (Math.max(dist.d,epsilon) * (1 + a * dist.d ** (2 * b)))
@@ -523,7 +635,7 @@ function collision(beta, alpha, eps, vertices, edges, disp) {
         const n1 = vertices[e.source]
         const n2 = vertices[e.target]
         const d = distance2D(n1, n2)
-        const fr = alpha / (Math.max(d.d**2, eps))
+        const fr = alpha / (d.d**2 + eps)
         disp[n1.index].x -= fr * d.x
         disp[n1.index].y -= fr * d.y
         disp[n2.index].x += fr * d.x
@@ -534,8 +646,8 @@ function collision(beta, alpha, eps, vertices, edges, disp) {
 function initUMAP({ nPoints = 1000, noise = 0.1, k = 15, minDist = 0.1, spread = 1, initialization = 'random' } = {}) {
     const data = generateSwissRoll(nPoints, noise)
     const {q, p, neighbors, edges} = computeNetwork(data, k, initialization)
-    const { a, b } = computeABParams(minDist, spread)
-    //console.log(data)
+    const { a, b } = fitTargetSimilarity(minDist, spread)
+    
     return {
         q: q,
         p: p,
@@ -552,7 +664,6 @@ function initUMAP({ nPoints = 1000, noise = 0.1, k = 15, minDist = 0.1, spread =
 // export the functions to be used in the visualization
 export {
     initUMAP,
-    computeABParams,
     collision,
     umapCrossEntropy,
     umapForces

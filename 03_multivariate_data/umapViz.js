@@ -2,6 +2,7 @@ import * as d3 from 'd3'
 import * as THREE from 'three'
 import { OrbitControls } from 'OrbitControls'
 import {initUMAP, collision, umapCrossEntropy, umapForces } from 'umap'
+import { mwcRandomFactory } from 'random'
 
 
 function normalizePointCloud(pointCloud) {
@@ -216,16 +217,16 @@ function drawThreejsPointCloud(pointCloud) {
 // D
 // 
 /************************************************************************************************************************/
-const dampConst = 1
+const dampConst = 10
 const minDamping = 0.1
 let damping = dampConst
 const ll_ = 20
-const minLr = 0.1
+const minLr = 0.5
 let lr = ll_
-
+const rnd_ = mwcRandomFactory(28) // create a random number generator with a fixed seed, to make the optimization process deterministic and reproducible
 // Helper function: compute some noise
 function jiggle() {
-    return (Math.random() - 0.5) * 1e-10
+    return (Math.random() - 0.5) * 1e-5
 }
 
 // Scale network: the simulation in the low-dimensional space is in a small area, due to scaling of forces,
@@ -309,7 +310,7 @@ function positionVerletIntegration(vertices, edges, lr, disp, a, b) {
     // conservative forces
     // conservativeForces(vertices, edges, lr, disp, a, b)
     umapForces(vertices, edges, a, b, disp)
-    //collision(1.1, 0.5, 0.01, vertices, disp)
+    collision(1.1, 0.07, 0.01, vertices, edges, disp)
     // cool down the optimization
     for (let d in disp) {
         disp[d].x *= lr
@@ -558,7 +559,7 @@ export function drawAll(initOptions = {minDist: 0.3, spread: 1.2, initialization
     }
     const spanX = maxX - minX
     const spanY = maxY - minY
-    const Q_SIZE_ = Math.max(spanX, spanY) * 1.2 // add some padding to make it more visually appealing
+    const Q_SIZE_ = 1.5 * Math.max(spanX, spanY)  // add some padding to make it more visually appealing
     drawD3PointCloud(q, edges, Q_SIZE_, a, b)
     drawD3CrossEntropyUMAP(vertices)
 }
