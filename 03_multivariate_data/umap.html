@@ -48,7 +48,7 @@
                     "binaryHeap": "../../00_common/binaryHeap.js",
                     "kdTree": "../../00_common/kdTree.js",
                     "utilities": "../../00_common/utilities.js",
-                    "umap": "./umap_temp.js",
+                    "umap": "./umap.js",
                     "umapViz": "./umapViz.js"
                 }
             }
@@ -68,17 +68,111 @@
                 The UMAP algorithm works by constructing a high-dimensional simplicial complex from the data and then 
                 finding a low-dimensional representation that preserves the topological structure of the data.
             </p>
-            <h2>Implementation: Position Verlet Integration</h2>
+            <p>The UMAP algorithm minimizes the fuzzy set cross-entropy loss function.</p>
             <p>
-                The implementation uses a force-directed layout, where nodes are subject to both attraction and repulsion 
+                \[
+                    C = \sum_{i \neq j} p_{ij} \log\left(\frac{p_{ij}}{q_{ij}}\right) + (1 - p_{ij}) \log\left(\frac{1 - p_{ij}}{1 - q_{ij}}\right)
+                \]
+            </p>
+            <p>
+                where \(p_{ij}\) is the probability of points \(i\) and \(j\) being connected in the high-dimensional space, and \(q_{ij}\) is the
+                probability of points \(i\) and \(j\) being connected in the low-dimensional space. The probabilities are defined as follows:
+            </p>
+            <p>
+                \[
+                    p_{ij} = \exp\left(-\frac{d_{ij}^2}{\sigma_i^2}\right)
+                \]
+            </p>
+            <p>
+                \[
+                    q_{ij} = \frac{1}{1 + a \cdot d_{ij}^{2b}}
+                \]
+            </p>
+            <p>
+                where \(d_{ij}\) is the distance between points \(i\) and \(j\) in the high-dimensional space, \(\sigma_i\) is a local scaling factor, 
+                and \(a\) and \(b\) are parameters that control the shape of the low dimensional embedding.
+            </p>
+            <p>The resulting layout can be used for visualization. It can be interpreted as a force-directed layout for graph visualization, where 
+                the attraction and repulsion forces are given by the following expressing:
+            </p>
+            <p>
+                \[\text{Force}_{attr} = \frac{2ab \cdot d_{ij}^{2b-2}}{1 + a d_{ij}^{2b}} \cdot p_{ij} \cdot (y_i - y_j)\]
+            </p>
+            <p>
+                \[\text{Force}_{rep} = \frac{2b}{ (\epsilon + d_{ik}^2)(1 + a d_{ik}^{2b}) } \cdot \phi \cdot (y_i - y_k)\]
+            </p>
+            <p>The hyperparameters \(a\) and \(b\) control the balance between attraction and repulsion forces. They are computed by 
+                requiring the distribution on low-space to fit desired membership or target probability distribution.
+            </p>
+            <p>
+                \[(1 + a d^{2b})^{-1} \approx 
+                \begin{cases} 
+                    1 & \text{if } d \leq \text{min_dist} \\ 
+                    e^{-(d - \text{min_dist})/\text{spread}} & \text{if } d > \text{min_dist} 
+                \end{cases}
+                \]
+            </p>
+            <p>
+                The Logic Behind the Fit is as follows:
+            </p>
+            <ul>
+                <li>
+                    The Plateau \(d \leq \text{min_dist}\) represents the volume of the points. The parameter \texttt{min_dist} sets a minimum spacing between points in the low-dimensional space. 
+                    It shapes how tightly clusters are packed together
+                </li>
+                <li>
+                    The Tail \(d > \text{min_dist}\): This represents the exponential decay of similarity. The \texttt{spread} parameter controls how quickly that similarity drops off.
+                </li>
+            </ul>
+            </p>
+            <p>The parameters \texttt{a} and \texttt{b} are computed with a grid search, followed by a second refined grid 
+                search around the best values. The user has to specify the \texttt{min_dist} and \texttt{spread} parameters.
+            </p>
+            <h3>Initialization</h3>
+            <p>
+                The initial position of he vertices in the low-dimensional space is computed using spectral embedding. We 
+                first compute the graph Laplacian
+            </p>
+            <p>
+                \[
+                    L = D - W
+                \]
+            </p>
+            <p>
+                where \(D\) is the degree matrix and \(W\) is symmetric the weighted adjacency matrix, where \(W_{ii}\).
+                We then compute the symmetric normalized graph Laplacian
+            </p>    
+            <p>
+                \[
+                    L_{sym} = D^{-1/2} L D^{-1/2} = I - D^{-1/2} W D^{-1/2}
+                \]
+            </p>
+            <p>
+                The eigenvectors corresponding to the second and third smallest eigenvalues of \(L_{sym}\) are used as the 
+                initial positions of the vertices in the low-dimensional space. These vectors are computed using a 
+                shifted power iteration method. We implement a block iteration to compute the first largest eigenvectors
+                of the matrix 
+            </p>
+            <p>
+                \[
+                    M = I - L_{sym} = D^{-1/2} W D^{-1/2}
+                \]
+            </p>
+            <h2>Low-Dimensional Layout: Position Verlet Integration</h2>
+            <p>
+                This implementation uses a force-directed layout, where nodes are subject to both attraction and repulsion 
                 forces. The multiparticle dynamic system is solved using the Verlet integration method. We include a damping 
                 factor to slow the system and avoid oscillations, allowing it to approach a steady state. The steady state 
-                corresponds to a minimum of the cross-entropy and visualizes the high-dimensional data in a 2D 
-                low-dimensional space.
+                corresponds to an approximation to a local minimum of the cross-entropy and visualizes the high-dimensional data in a 2D 
+                low-dimensional space. We use a standard data set called Swiss Roll to test the implementation. The Swiss Roll 
+                is a 3D dataset that is often used to test dimensionality reduction algorithms. It consists of points that are arranged in a spiral 
+                shape, and it is designed to be difficult to visualize in 2D without losing important information about the structure of the data.
             </p>
             <h3>Example</h3>
             <p>
-                The follwing example visualizes Swiss Roll data.
+                The example below shows the 3D Swiss Roll data set and the corresponding2D UMAP layout. Both visualizations
+                are interactive and allow you to explore the data by picking and dragging. The 3D visualization was created using Three.js. 
+                The 2D visualization was created using D3.js. 
             </p>
             <hr>
             <div class="umpa-grid-container">
