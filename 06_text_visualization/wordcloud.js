@@ -1,7 +1,8 @@
 import * as d3 from "d3"
 import { randColorsHex } from "colors"
 import { dropdown } from "gui"
-import { normalRandomFactory, random_seed } from "random"
+import { Geom, Vec } from "utilities"
+import { normalRandomFactory, mwcRandomFactory } from "random"
 
 // global variables, don't like it but it is easier for this example
 const width =  550
@@ -62,7 +63,7 @@ function draw(text) {
     const nr_w = textStr.length
     const set = new Set()
     let cnt = 0
-    const random = random_seed(123)
+    const random = mwcRandomFactory(123)
     while (set.size < 80 && cnt < nr_w) {
         const s = textStr[ Math.floor(random() * nr_w ) ]
         if (s.length > 2) {
@@ -288,10 +289,7 @@ function intersectsOBB( obb, obbs ) {
  * @returns {Object} normalized vector {x, y}
  */
 function normalize(v) {
-    const l = Math.sqrt(v.x * v.x + v.y * v.y)
-    v.x /= l
-    v.y /= l
-    return v
+    return Geom.vecToPoint2(Vec.normalize(Geom.pointToVec2(v)))
 }
 /**
  * Intersects two oriented bounding boxes
@@ -354,7 +352,7 @@ function sat (p0, n0, obb_a, obb_b) {
  * @returns {Number} projection of v onto n
  */
 function project(p, n, v) {
-    return (v.x - p.x) * n.x + (v.y - p.y) * n.y
+    return Geom.scalarProjection2(p, n, v)
 }
 
 
@@ -621,10 +619,7 @@ function intersectsOBB( obb, obbs ) {
  * @returns {Object} normalized vector {x, y}
  */
 function normalize(v) {
-    const l = Math.sqrt(v.x * v.x + v.y * v.y)
-    v.x /= l
-    v.y /= l
-    return v
+    return Geom.vecToPoint2(Vec.normalize(Geom.pointToVec2(v)))
 }
 /**
  * Intersects two oriented bounding boxes
@@ -687,7 +682,7 @@ function sat (p0, n0, obb_a, obb_b) {
  * @returns {Number} projection of v onto n
  */
 function project(p, n, v) {
-    return (v.x - p.x) * n.x + (v.y - p.y) * n.y
+    return Geom.scalarProjection2(p, n, v)
 }
 `
 const hlPre = d3.select("#hl-code").append("pre")

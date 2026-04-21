@@ -1,7 +1,7 @@
 import * as d3 from "d3"
 import { randColorsHex } from "colors"
 import { genDivTooltip } from "draw"
-import { random_seed } from "random"
+import { mwcRandomFactory } from "random"
 import { readFlareHierarchy } from "tree"
 
 // draw tree
@@ -43,7 +43,7 @@ export function drawAll(divElId, data) {
     const nodes = []
     const colSeed = 11
     const colGen = randColorsHex(colSeed)
-    const random = random_seed(colSeed)
+    const random = mwcRandomFactory(colSeed)
     for (let g of rootNode.children) {
         const descendants = tree.leaves(g)
         const color = colGen()

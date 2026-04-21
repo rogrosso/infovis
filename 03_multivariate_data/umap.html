@@ -9,33 +9,32 @@
         <!-- Styles -->
         <link rel="stylesheet" href="../../css/lectures.css">
         <style>
-            body {
-                maring: 0;
+            :root {
+                --size: 350px;
+                --gap: 10px;
+                --pad: 4px;
+                --grid-background: aliceblue;
+                --canvas-background: lightsteelblue;
             }
-            canvas {
-                display: block;
-            }
-            .umpa-grid-container {
+            .umap-grid-container {
                 display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-                background-color: aliceblue;
-                padding: 4px; 
-                margin: 0 auto; 
-                width: 720px;
-                align-items: start;
-                justify-items: start;
+                grid-template-columns: repeat(2, var(--size));
+                width: calc(2 * var(--size) + 2 * var(--pad) + var(--gap));
+                gap: var(--gap);
+                padding: var(--pad);
+                background-color: var(--grid-background);
+                justify-content: center;
+                align-content: center;
+                justify-items: center;
                 outline: 1px solid teal;
             }
-            #umap-threejs {
-                width: 350px;
-                height: 350px;
-                background-color: lightsteelblue;
-            }
-            #umap-d3js {
-                width: 350px;
-                height: 350px;
-                background-color: lightsteelblue;
+            #umap-threejs,
+            #umap-d3js,
+            #umap-crossentropy {
+                width: var(--size);
+                height: var(--size);
+                background-color: var(--canvas-background);
+                outline: 1px solid steelblue;
             }
         </style>
         <!-- Scripts -->
@@ -182,10 +181,11 @@
                 The 2D visualization was created using D3.js. 
             </p>
             <hr>
-            <div class="umpa-grid-container">
+            <div class="umap-grid-container">
                 <div id="umap-threejs"></div>
                 <div id="umap-d3js"></div>
             </div>
+            <hr>
             <h2>Standard UMAP Implementation</h2>
             <p>
                 The following implementation of UMAP is based on the original paper by McInnes and co-workers, which can 
@@ -194,13 +194,14 @@
                 The implementation is not optimized for performance, but it is designed to be easy to understand and follow 
                 the original algorithm as closely as possible.
             </p>
+            <hr>
             <div id="umap-crossentropy"></div>
+            <hr>
             <script type="module">
                 import { drawAll } from "umapViz"
                 drawAll()
             </script>
             </div>
-            <hr>
             <footer>
                 <hr>
                 <div class="impressum">

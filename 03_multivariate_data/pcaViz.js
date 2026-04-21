@@ -2,38 +2,13 @@ import * as d3 from 'd3'
 import * as THREE from 'three'
 import { OrbitControls } from 'OrbitControls'
 import { pca } from 'pca'
+import { Geom } from 'utilities'
 import { mwcRandomFactory } from 'random'
 import { generateSwissRoll } from 'swissRoll'
 
-
-function normalizePointCloud(pointCloud) {
-    const normalizedPoints = pointCloud.map(point => ({ ...point }))
-    const maxAbsValue = Math.max(
-        ...normalizedPoints.map(point => Math.abs(point.x)),
-        ...normalizedPoints.map(point => Math.abs(point.y)),
-        ...normalizedPoints.map(point => Math.abs(point.z))
-    )
-
-    if (maxAbsValue > 0) {
-        for (const point of normalizedPoints) {
-            point.x /= maxAbsValue
-            point.y /= maxAbsValue
-            point.z /= maxAbsValue
-        }
-    }
-
-    const centerX = normalizedPoints.reduce((sum, point) => sum + point.x, 0) / normalizedPoints.length
-    const centerY = normalizedPoints.reduce((sum, point) => sum + point.y, 0) / normalizedPoints.length
-    const centerZ = normalizedPoints.reduce((sum, point) => sum + point.z, 0) / normalizedPoints.length
-
-    for (const point of normalizedPoints) {
-        point.x -= centerX
-        point.y -= centerY
-        point.z -= centerZ
-    }
-
-    return normalizedPoints
-}
+// Global variables
+let width = 400
+let height = 400
 
 function computeBounds(pointCloud) {
     return pointCloud.reduce((bounds, point) => {
@@ -75,8 +50,6 @@ function computeShadowBounds(pointCloud, groundY, lightDirection) {
 
 function drawThreejsPointCloud(pointCloud) {
     const container = document.getElementById('pca-threejs')
-    let width = 400
-    let height = 400
 
     if (container.clientWidth !== undefined) {
         width = parseInt(container.clientWidth)
@@ -110,7 +83,7 @@ function drawThreejsPointCloud(pointCloud) {
     renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setSize(width, height)
     renderer.shadowMap.enabled = true
-    renderer.domElement.style.border = 'solid #a0adaf'
+    //renderer.domElement.style.border = 'solid #a0adaf'
     container.replaceChildren(renderer.domElement)
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9)
@@ -227,8 +200,13 @@ function drawD3PointCloud(q) {
     const nodeStrokeColor = "#ffffff"
 
     // get container dimensions
-    let width = 400
-    let height = 400
+    const container = document.getElementById('pca-d3js')
+    if (container.clientWidth !== undefined) {
+        width = parseInt(container.clientWidth)
+    }
+    if (container.clientHeight !== undefined) {
+        height = parseInt(container.clientHeight)
+    }
     
     // compute size for the drawing
     const margin = { top: 10, right: 10, bottom: 10, left: 10 }
@@ -276,7 +254,7 @@ function drawD3PointCloud(q) {
         .attr('width', width)
         .attr('height', height)
         .style('background-color', '#f3f4f6')
-        .style('border', 'solid #a0adaf')
+        //.style('border', 'solid #a0adaf')
     // add a group for the network
     const netG = svg
         .append('g')
@@ -306,7 +284,7 @@ function drawD3PointCloud(q) {
 export function drawAll() {
     const p = generateSwissRoll(1000, 0.1)
     // 3D graphic
-    const pointCloud = normalizePointCloud(p)
+    const pointCloud = Geom.normalizePointCloud3(p)
     drawThreejsPointCloud(pointCloud)
     // 2D svg graphic
     const data = pointCloud.map(point => ([point.x, point.y, point.z]))

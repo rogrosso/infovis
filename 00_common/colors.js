@@ -1,4 +1,4 @@
-import { random_seed } from "random"
+import { mwcRandomFactory } from "random"
 
 // colors generated at https://mokole.com/palette.html
 export const colorsUno = [ 
@@ -129,7 +129,7 @@ export const colorsDos = [
 export function randColors(...s) {
     let seed = 1234
     if (s.length > 0) seed = s[0]
-    const rand = random_seed(seed)
+    const rand = mwcRandomFactory(seed)
     return function () {
         const r = Math.round(rand() * 255)
         const g = Math.round(rand() * 255)
@@ -140,7 +140,7 @@ export function randColors(...s) {
 export function randColorsHex(...s) {
     let seed = 1234
     if (s.length > 0) seed = s[0]
-    const rand = random_seed(seed)
+    const rand = mwcRandomFactory(seed)
     return function () {
         const r = Math.round(rand() * 255)
         const g = Math.round(rand() * 255)

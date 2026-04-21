@@ -1,7 +1,7 @@
 import * as d3 from "d3"
 import { dropdown } from "gui"
 import { genDivTooltip } from "draw"
-import { keyCantor } from "utilities"
+import { Vec, keyCantor } from "utilities"
 import { easyRandom } from "random"
 import {
     jiggle,
@@ -61,9 +61,11 @@ export function drawAll(divElId, url1) {
                 console.log("is NaN")
                 return
             }
-            const d = Math.sqrt(dx * dx + dy * dy)
-            n.x += (dx / d) * Math.min(alpha, d) + 0.001 * jiggle()
-            n.y += (dy / d) * Math.min(alpha, d) + 0.001 * jiggle()
+            const d = Vec.norm([dx, dy])
+            if (d > 0) {
+                n.x += (dx / d) * Math.min(alpha, d) + 0.001 * jiggle()
+                n.y += (dy / d) * Math.min(alpha, d) + 0.001 * jiggle()
+            }
         }
 
         // shift center of network to center of bbox

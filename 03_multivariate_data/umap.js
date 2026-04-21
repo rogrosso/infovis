@@ -1,5 +1,5 @@
 import { kdTreeFactory } from 'kdTree'
-import { keyCantor } from 'utilities'
+import { Geom, keyCantor } from 'utilities'
 import { mwcRandomFactory } from 'random'
 import { generateSwissRoll } from 'swissRoll'
 
@@ -21,10 +21,7 @@ const radius = Q_SIZE / 100
 
 // Euclidean distance function for 3D points
 function distance(n1, n2) {
-    const dx = n1.x - n2.x
-    const dy = n1.y - n2.y
-    const dz = n1.z - n2.z
-    return Math.sqrt(dx * dx + dy * dy + dz * dz)
+    return Geom.dist3(n1, n2)
 }
 // For performance introduce an Euclidean distance for the low-dimensional space, which is used in the optimization.
 // Compute the direction from n1 to n2, and the distance between them.
@@ -33,33 +30,16 @@ const d_rnd = mwcRandomFactory(10)
 function distance2D(n1, n2) {
     let dx = n2.x - n1.x
     let dy = n2.y - n1.y
-    let d = Math.sqrt(dx * dx + dy * dy)
-    if (d === 0) {
+    let d2 = dx * dx + dy * dy
+
+    if (d2 === 0) {
         dx = (d_rnd() - 0.5) * 1e-4
         dy = (d_rnd() - 0.5) * 1e-4
-        d = Math.sqrt(dx * dx + dy * dy)
+        d2 = dx * dx + dy * dy
     }
-    return { x: dx / d, y: dy / d, d: d }
-}
 
-// normalize a vector to have unit length, if the length is too small, return a zero vector
-// normalize in place
-function normalize(v) {
-    let sz_ = 0
-    for (let e of v) sz_ += e * e
-    sz_ = Math.sqrt(sz_)
-    if (sz_ < 1e-12) {
-        return v.map(() => 0)
-    } else {
-        for (let i = 0; i < v.length; i++) v[i] /= sz_
-    }
-}
-
-// the standard dot product of two vectors
-function dot(v1, v2) {
-    let d = 0
-    for (let i = 0; i < v1.length; i++) d += v1[i] * v2[i]
-    return d
+    const d = Math.sqrt(d2)
+    return { x: dx / d, y: dy / d, d, d2 }
 }
 
 // UMAP functions
@@ -127,6 +107,23 @@ function fitTargetSimilarity(minDist = 0.1, spread = 1) {
     return { a: a_, b: b_ }
 }
 
+// Helper functions for UMAP to improve performance of the optimization process. 
+function normalizeArrayInPlace(v) {
+    let sum = 0
+    for (let i = 0; i < v.length; i++) sum += v[i] * v[i]
+    if (sum === 0) {
+        for (let i = 0; i < v.length; i++) v[i] = 0
+        return
+    }
+    const inv = 1 / Math.sqrt(sum)
+    for (let i = 0; i < v.length; i++) v[i] *= inv
+}
+
+function dotArray(v1, v2) {
+    let sum = 0
+    for (let i = 0; i < v1.length; i++) sum += v1[i] * v2[i]
+    return sum
+}
 function spectralEmbedding(vertices, edges) {
     // compute M = I - D^(-1/2) A D^(-1/2), where A is the adjacency matrix and D is the degree matrix
     const nr_ = vertices.length
@@ -146,14 +143,14 @@ function spectralEmbedding(vertices, edges) {
     }
     // compute the first fixed eigenvector of M with eigenvalue 1
     const v0 = new Array(nr_).fill(0).map((_, i) => Math.sqrt(D[i]))  
-    normalize(v0)
+    normalizeArrayInPlace(v0)
 
     // initialize eigenvectors with seeded random values to ensure reproducibility
     const rnd = mwcRandomFactory(42)
     const v1 = new Array(nr_).fill(0).map(() => (rnd()-0.5))
     const v2 = new Array(nr_).fill(0).map(() => (rnd()-0.5))
-    normalize(v1)
-    normalize(v2)
+    normalizeArrayInPlace(v1)
+    normalizeArrayInPlace(v2)
 
     // power iteration to compute the second and third eigenvectors
     const mv1 = new Array(nr_).fill(0)
@@ -171,21 +168,21 @@ function spectralEmbedding(vertices, edges) {
             }
         }
         // orthogonalize to v0
-        const dot1 = dot(mv1, v0)
-        const dot2 = dot(mv2, v0)
+        const dot1 = dotArray(mv1, v0)
+        const dot2 = dotArray(mv2, v0)
         for (let i = 0; i < nr_; i++) {
             mv1[i] -= dot1 * v0[i]
             mv2[i] -= dot2 * v0[i]
         }
         // orthogonalize to each other
-        const dot12 = dot(mv1, mv2)
-        const dot11 = dot(mv1, mv1)
+        const dot12 = dotArray(mv1, mv2)
+        const dot11 = dotArray(mv1, mv1)
         for (let i = 0; i < nr_; i++) {
             mv2[i] -= dot12 / dot11 * mv1[i]
         }
         // normalize
-        normalize(mv1)
-        normalize(mv2)
+        normalizeArrayInPlace(mv1)
+        normalizeArrayInPlace(mv2)
         // error is the sum of the changes in the eigenvectors
         let err1 = 0
         let err2 = 0
@@ -254,7 +251,7 @@ function computeNetwork(vertices, k = 15, initialization = 'spectral') {
         for (let i = 1; i < knn.length; i++) { // Start from 1 to skip the point itself
             // update neighbors with the k nearest neighbors
             // using squared distance in kd-tree, so take the square root for actual distance
-            const nv = {index: knn[i].index, distance: Math.max(0, Math.sqrt(knn[i].distance))} // introduce this vector for debugging purposes, to check the distances between neighbors
+            const nv = {index: knn[i].index, distance: Math.sqrt(knn[i].distance)} // introduce this vector for debugging purposes, to check the distances between neighbors
             nn.push(nv)
         }
     }
@@ -410,7 +407,7 @@ function umapForces(vertices, edges, a, b, disp) {
             }
             const dist = distance2D(source, vertices[randomIndex]) // negative distance
             //const fr = (weight/M) * 2 * b / (Math.max(dist.d,epsilon) * (1 + a * dist.d ** (2 * b)))
-            const fr = (weight / M) * (2 * b / ((dist.d**2 + epsilon) * (1 + a * dist.d ** (2 * b))))
+            const fr = (weight / M) * (2 * b / ((dist.d2 + epsilon) * (1 + a * dist.d ** (2 * b))))
             disp[source.index].x -= fr * dist.x * dist.d
             disp[source.index].y -= fr * dist.y * dist.d
         }
@@ -423,7 +420,7 @@ function collision(beta, alpha, eps, vertices, edges, disp) {
         const n1 = vertices[e.source]
         const n2 = vertices[e.target]
         const d = distance2D(n1, n2)
-        const fr = alpha / (d.d**2 + eps)
+        const fr = alpha / (d.d2 + eps)
         disp[n1.index].x -= fr * d.x
         disp[n1.index].y -= fr * d.y
         disp[n2.index].x += fr * d.x

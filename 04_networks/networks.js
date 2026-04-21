@@ -1,5 +1,5 @@
 import { binaryHeapFactory } from 'binaryHeap'
-import { keyCantor as keyGen } from 'utilities'
+import { Geom, keyCantor as keyGen } from 'utilities'
 import { easyRandom } from 'random'
 
 
@@ -251,15 +251,12 @@ export function collisionForce(k, beta, n1, n2, disp) {
 // gravitational force to keep the network in the center of the drawing area
 // and avoid nodes with few neighbors (or disconnected) to go out of the drawing area
 export function gravitationalForce(kg, n, bbox, disp) {
-    const x = (bbox.xmax+bbox.xmin) / 2 - n.x
-    const y = (bbox.ymax+bbox.ymin) / 2 - n.y
-    const s = Math.sqrt(x**2 + y**2)
+    const center = { x: (bbox.xmax + bbox.xmin) / 2, y: (bbox.ymax + bbox.ymin) / 2 }
+    const direction = Geom.direction2(n, center, jiggle)
     const r = n.r
-    const dx = x / s
-    const dy = y / s
     const g = kg / r
-    disp[n.index].x += g * dx
-    disp[n.index].y += g * dy
+    disp[n.index].x += g * direction.x
+    disp[n.index].y += g * direction.y
 }
 // Fruchtman-Reingold forces
 export function attractiveForceF(K, n1, n2, disp) {
@@ -299,15 +296,7 @@ export function repulsiveForceA(K, n1, n2, disp) {
 const randJiggle = easyRandom(13)
 export function jiggle() { return (randJiggle() - 0.5) * 1e-4 }
 export function distance(n1,n2) {
-    let dx = n2.x - n1.x
-    let dy = n2.y - n1.y
-    let d = Math.sqrt(dx * dx + dy * dy)
-    if (d === 0) {
-        dx = jiggle()
-        dy = jiggle()
-        d = Math.sqrt(dx * dx + dy * dy)
-    }
-    return { x: dx / d, y: dy / d, d: d }
+    return Geom.directionDist2(n1, n2, randJiggle)
 }
 export function controlFunction(mAlpha, iAlpha, vDump) {
     const minAlpha = mAlpha

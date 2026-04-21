@@ -2,7 +2,7 @@ import * as d3 from "d3"
 import { colorsUno, colorsDos, randColorsHex } from "colors"
 import { genDivTooltip } from "draw"
 import { dropdown } from "gui"
-import { random_seed } from "random"
+import { mwcRandomFactory } from "random"
 import { preprocessNetwork } from "networkUtils"
 import { dijkstra, bfs } from "traversalAlgorithms"
 
@@ -106,7 +106,7 @@ export function drawAll(divElId, test01, test02) {
 
     // check for weighted edges
     function checkWeights({ edges }) {
-        const rand = random_seed(11)
+        const rand = mwcRandomFactory(11)
         const factor = 10
         for (let e of edges) {
             const s = e.source
