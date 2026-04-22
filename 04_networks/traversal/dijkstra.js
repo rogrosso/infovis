@@ -397,37 +397,3 @@ export function drawAll(divElId, test01, test02) {
         recursiveColoring()
     }
 }
-const cText = `
-// Dijkstra: Single-source shortest path with backtracing
-function dijkstra(nodes, neighbors, weights, index) {
-    const pQ = binaryHeapFactory( n => n.d )
-    nodes.forEach(n => {
-      n.d = Infinity
-      n.p = -2
-    })
-    nodes[index].d = 0
-    nodes[index].p = -1
-    nodes.forEach(n => pQ.push(n))
-    while (!pQ.empty()) {
-      const s = pQ.pop()
-      const d = s.d
-      const n_weights = weights[s.index]
-      neighbors[s.index].forEach((n_index, i) => {
-        const n = nodes[n_index]
-        const weight = n_weights[i] 
-        if (d + weight < n.d) {
-            // update this element
-            n.p = s.index
-            n.d = d + weight
-            pQ.update(n)
-        }
-      })
-    }
-} 
-`
-const hlPre = d3.select("#hl-code").append("pre")
-const hlCod = hlPre
-    .append("code")
-    .attr("class", "language-javascript")
-    .attr("style", "border: 1px solid #C1BAA9")
-    .text(cText)
