@@ -34,9 +34,7 @@ export function preprocessNetwork(network) {
             weights[t].push(1)
         }
     }
-    for (let i = 0; i < neighbors.length; i++) {
-        neighbors[i] = Array.from(neighbors[i])
-    }
+    
     // compute degree centrality, add id 
     for (let i = 0; i < nodes.length; i++) {
         nodes[i].index = i

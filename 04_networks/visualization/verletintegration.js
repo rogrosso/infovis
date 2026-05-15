@@ -263,6 +263,15 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         .attr("cx", (d) => d.x)
         .attr("cy", (d) => d.y)
         .attr("fill", (d) => colorScale(d.group))
+        .on("mouseover", function (event, d) {
+            mouseOver(divTooltip, event, d)
+        })
+        .on("mousemove", function (event, d) {
+            mouseMove(divTooltip, event, d)
+        })
+        .on("mouseleave", function (event, d) {
+            mouseLeave(divTooltip, event, d)
+        })
         .call(
             d3
                 .drag()
@@ -298,7 +307,20 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
             .attr("stroke", nodeStrokeColor)
             .attr("stroke-width", nodeStrokeWidth)
     }
-
+    function mouseOver(divTooltip, event, d) {
+        divTooltip.style("display", "inline-block")
+        const x = event.pageX + offsetX
+        const y = event.pageY - offsetY
+        divTooltip.html(d.name).style("left", `${x}px`).style("top", `${y}px`)
+    }
+    function mouseMove(divTooltip, event, d) {
+        const x = event.pageX + offsetX
+        const y = event.pageY - offsetY
+        divTooltip.html(d.name).style("left", `${x}px`).style("top", `${y}px`)
+    }
+    function mouseLeave(divTooltip, event, d) {
+        divTooltip.style("display", "none")
+    }
     // interaction
     const C = 0.45 // 0.52 // 0.4537 // 3 // 0.399
     const Kf = C * Math.sqrt((width * height) / nodes.length) // Fruchterman-Reindold
