@@ -6,7 +6,7 @@ import { preprocessNetwork } from "networkUtils"
 import { bfs, dfs } from "traversalAlgorithms"
 
 
-export function drawAll(divElId, test01, lesmiserables) {
+export function drawAll(divElId, test01, test04, lesmiserables) {
     const divTooltip = genDivTooltip()
 
     let value = null
@@ -43,8 +43,8 @@ export function drawAll(divElId, test01, lesmiserables) {
     const gridObj = d3.select(divElId)
     const guiDiv = gridObj.append("div").attr("class", "cell").attr("id", bfsId)
 
-    const dataKeys = ["test01", "lesmiserables"]
-    const dataDefs = [{ name: "Test 01" }, { name: "Les Miserables" }]
+    const dataKeys = ["test01", "test04", "lesmiserables"]
+    const dataDefs = [{ name: "Test 01" }, { name: "Test 04" }, { name: "Les Miserables" }]
     const dataMap = new Map()
     for (let i = 0; i < dataKeys.length; i++) {
         dataMap.set(dataKeys[i], dataDefs[i])
@@ -104,6 +104,7 @@ export function drawAll(divElId, test01, lesmiserables) {
     lesmiserables["edges"] = lesmiserables["links"]
     preprocessNetwork(lesmiserables)
     preprocessNetwork(test01)
+    preprocessNetwork(test04)
 
     const drawConfig = {
         selection: netwG,
@@ -111,7 +112,7 @@ export function drawAll(divElId, test01, lesmiserables) {
         height: height,
         margin: margin,
     }
-    drawTest01(test01, drawConfig)
+    drawTestNetwork(test01, drawConfig)
 
     function clearNodes(nodes) {
         for (let n of nodes) {
@@ -283,7 +284,7 @@ export function drawAll(divElId, test01, lesmiserables) {
         } // drag()
     }
 
-    function drawTest01(network, drawConfig) {
+    function drawTestNetwork(network, drawConfig) {
         const { selection, width, height, margin } = drawConfig
         selection.selectAll("*").remove()
         const g = selection
@@ -404,6 +405,9 @@ export function drawAll(divElId, test01, lesmiserables) {
             case "test01":
                 dataSel = event
                 break
+            case "test04":
+                dataSel = event
+                break
             case "lesmiserables":
                 dataSel = event
                 break
@@ -418,7 +422,8 @@ export function drawAll(divElId, test01, lesmiserables) {
         }
         if (event === "bfs") traversal = bfs
         else if (event === "dfs") traversal = dfs
-        if (dataSel === "test01") drawTest01(test01, drawConfig)
+        if (dataSel === "test01") drawTestNetwork(test01, drawConfig)
+        else if (dataSel === "test04") drawTestNetwork(test04, drawConfig)
         else if (dataSel === "lesmiserables")
             drawLesmiserables(lesmiserables, drawConfig)
     }
@@ -471,7 +476,7 @@ export function drawAll(divElId, test01, lesmiserables) {
                             return 1
                         }
                     } else {
-                        return 0
+                        return 0.1
                     }
                 })
             nGroup

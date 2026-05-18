@@ -67,12 +67,14 @@
                 import { drawAll } from "dfs"
                 const url1 = '../../data/test01.json'
                 const url2 = '../../data/lesmiserables.json'
+                const url3 = '../../data/test04.json'
                 const resp1 = await fetch(url1)
                 const test01 = await resp1.json()
                 const resp2 = await fetch(url2)
                 let lesmiserables = await resp2.json()
-                lesmiserables['edges'] = lesmiserables['links']
-                drawAll('#dfs-traversal', test01, lesmiserables)
+                const resp3 = await fetch(url3)
+                const test04 = await resp3.json()
+                drawAll('#dfs-traversal', test01, test04, lesmiserables)
             </script>
             </div>
             <hr>

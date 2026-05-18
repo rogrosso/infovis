@@ -40,6 +40,8 @@ export function preprocessNetwork(network) {
         nodes[i].index = i
         nodes[i].index = nodes[i].index
         nodes[i].c = neighbors[i].length
+        if (!nodes[i].hasOwnProperty("x")) nodes[i].x = (Math.random() - 0.5) * 100
+        if (!nodes[i].hasOwnProperty("y")) nodes[i].y = (Math.random() - 0.5) * 100
         if (typeof nodes[i].x === 'string') nodes[i].x = +nodes[i].x
         if (typeof nodes[i].y === 'string') nodes[i].y = +nodes[i].y
         if (!nodes[i].hasOwnProperty('group')) nodes[i].group = 1
