@@ -40,30 +40,48 @@
                         in the drawing as the graph theoretic distance between them in the corresponding graph.</emp>
                     </li>
                     <li>
-                        The layout uses a spring model, where for each pair of nodes a spring is defined with an ideal length 
-                        proportional to the graph-theoretic distance between the nodes, and a stiffness inversely proportional to 
-                        the inverse of the square of the graph-theoretic distance.
+                        The layout uses a spring model, in which, for each pair of nodes, a spring is defined with an ideal length 
+                        proportional to the graph-theoretic distance between the nodes and a stiffness inversely proportional to the square 
+                        of that distance.
                     </li>
                     <li>
-                        We compute the layout by simulating a spring system with a damping term to reach a steady state.
-                        The integration is done with Verlet integration, which is a symplectic integrator that is 
-                        more stable than Euler integration.
+                        In a first implementation, we compute the layout by simulating a spring system with a damping term  to reach a 
+                        steady state. The integration is performed using Verlet integration, a symplectic integrator that is more stable 
+                        than Euler integration. The first plot shows the layout in an infinite loop. Nodes can be picked and dragged to 
+                        see how the layout evolves.
+                    </li>
+                    <li>
+                        The second implementation uses the original Kamada-Kawai optimization algorithm, where in each iteration the node 
+                        with the largest error is moved to reduce the error. The second plot shows the layout after 400 iterations of the 
+                        algorithm. The layout is deterministic, as we use a seeded random generator to break ties when two nodes have the 
+                        same position.
                     </li>
                 </ul>
             </p>
             <hr>
             <div class="canvas">
-                <div id="kamada-kawai-force-directed-layout" class="grid-container-1-column" style="text-align: center;">
+                <div id="kamada-kawai-force-directed-layout-1" class="grid-container-1-column" style="text-align: center;">
                 </div>
             <script type="module">
-                import { drawAll } from "kamadaKawaiLayout"
+                import { drawAll1 } from "kamadaKawaiLayout"
                 const url = '../../data/lesmiserables.json'
                 const response = await fetch(url)
                 const lesmiserables = await response.json()
-                drawAll('#kamada-kawai-force-directed-layout', lesmiserables)
+                drawAll1('#kamada-kawai-force-directed-layout-1', lesmiserables)
             </script>
             </div>
             <hr>
+            <div class="canvas">
+                <div id="kamada-kawai-force-directed-layout-2" class="grid-container-1-column" style="text-align: center;">
+                </div>
+            <script type="module">
+                import { drawAll2 } from "kamadaKawaiLayout"
+                const url = '../../data/lesmiserables.json'
+                const response = await fetch(url)
+                const lesmiserables = await response.json()
+                drawAll2('#kamada-kawai-force-directed-layout-2', lesmiserables, { width: 800, height: 800, nodeRadius: 5 })
+            </script>
+            </div>
             
             <footer>
                 <hr>

@@ -9,14 +9,13 @@ import { preprocessNetwork } from "networkUtils"
 const dampConst = 10
 let damping = dampConst
 let dragNode = false
-//let maxDist = -Infinity
 
-// Use a seeded random generator to make the layout deterministic for reproducible results
-const rnd = mwcRandomFactory(42)
 
 // Compute neighborhood of a node, then compute
 // all pairs shortest paths with BFS
 function initKamadaKawai(nodes, edges, L, K, width, height) {
+    // Use a seeded random generator to make the layout deterministic for reproducible results
+    const rnd = mwcRandomFactory(42)
     const nrNodes = nodes.length
     const neighbors = new Array(nrNodes).fill(null).map(() => [])
     for (let e of edges) {
@@ -55,6 +54,11 @@ function initKamadaKawai(nodes, edges, L, K, width, height) {
         // fill into die distance matrix
         for (let j = 0; j < nrNodes; j++) {
             if (i === j) {
+                distanceMatrix[i][j].l = 0
+                distanceMatrix[i][j].k = 0
+                continue
+            }
+            if (!Number.isFinite(nDist[j].d)) {
                 distanceMatrix[i][j].l = 0
                 distanceMatrix[i][j].k = 0
                 continue
@@ -108,12 +112,14 @@ function initKamadaKawai(nodes, edges, L, K, width, height) {
     return distanceMatrix
 }
 
+// Use a seeded random generator to make the layout deterministic for reproducible results
+const rndD = mwcRandomFactory(42)
 function distance(n1, n2) {
     let dx = n2.x - n1.x
     let dy = n2.y - n1.y
     if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
-        dx = (rnd()-0.5) * 1e-4
-        dy = (rnd()-0.5) * 1e-4
+        dx = (rndD()-0.5) * 1e-4
+        dy = (rndD()-0.5) * 1e-4
     }
     const d = Math.sqrt(dx * dx + dy * dy)
     return { x: dx/d, y: dy/d, d: d }
@@ -185,7 +191,115 @@ function step(nodes, distanceMatrix, disp, bbox) {
     fixPositions(nodes, bbox)
 }
 
-export function drawAll(divElId, data) {
+// Implement Kamada-Kawai force-directed layout algorithm
+function kkGradient(index, nodes, distanceMatrix) {
+    const n = nodes[index]
+    let gradX = 0
+    let gradY = 0
+    for (let j = 0; j < nodes.length; j++) {
+        if (j === index) continue
+        const m = nodes[j]
+        const k = distanceMatrix[index][j].k
+        if (k === 0) continue
+        const d = distance(n, m)
+        const l = distanceMatrix[index][j].l
+        gradX -= k * (d.d - l) * d.x
+        gradY -= k * (d.d - l) * d.y
+    }
+    return { gradX, gradY }
+}
+function kkMaxError(gradients) {
+    let maxError = -Infinity
+    let index = -1
+    for (let g of gradients) {
+        const error = Math.sqrt(g.x * g.x + g.y * g.y)
+        if (error > maxError) {
+            maxError = error
+            index = g.index
+        }
+    }
+    return {error: maxError, index: index}
+}
+// Newton Raphson method to optimize the position of a node
+function kkOptimize(index, nodes, distanceMatrix) {
+    const n = nodes[index]
+    let error = Infinity
+    let iter = 0
+    const epsilon = 1e-3
+    const maxIter = 400
+    while(error > epsilon && iter < maxIter) {
+        let gradX = 0
+        let gradY = 0
+        let gradXX = 0
+        let gradYY = 0
+        let gradXY = 0
+        for (let j = 0; j < nodes.length; j++) {
+            if (j === index) continue
+            const m = nodes[j]
+            const k = distanceMatrix[index][j].k
+            if (k === 0) continue
+            const d = distance(n, m)
+            const l = distanceMatrix[index][j].l
+            gradX -= k * (d.d - l) * d.x
+            gradY -= k * (d.d - l) * d.y
+            gradXX += k * (1 - l * d.y * d.y / d.d)
+            gradYY += k * (1 - l * d.x * d.x / d.d)
+            gradXY += k * l * d.x * d.y / d.d
+        }
+        error = Math.hypot(gradX, gradY)
+        if (error <= epsilon) {
+            return
+        }
+        const denom = gradXX * gradYY - gradXY * gradXY
+        if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
+            return
+        }
+        const dx = (gradYY * gradX - gradXY * gradY) / denom
+        const dy = (gradXX * gradY - gradXY * gradX) / denom
+        n.x -= dx
+        n.y -= dy
+        iter++
+    }
+}
+// This function computes the position of the nodes
+function kamadaKawai(nodes, edges, distanceMatrix, bbox) {
+
+    // init displacements
+    const disp = nodes.map((n) => {
+        return { x: 0, y: 0, index: n.index }
+    })
+    // initialize gradients
+    const gradients = nodes.map((n) => {
+        return { x: 0, y: 0, index: n.index }
+    })
+    for (let n of nodes) {
+        const {gradX, gradY} = kkGradient(n.index, nodes, distanceMatrix)
+        gradients[n.index].x = gradX
+        gradients[n.index].y = gradY
+    }
+    // algorithm
+    const epsilon = 1e-4
+    const maxIter = 400
+    let iter = 0
+    let {error, index} = kkMaxError(gradients)
+    while (error > epsilon && iter < maxIter) {
+        kkOptimize(index, nodes, distanceMatrix)
+        // update gradients
+        for (let n of nodes) {
+            const {gradX, gradY} = kkGradient(n.index, nodes, distanceMatrix)
+            gradients[n.index].x = gradX
+            gradients[n.index].y = gradY
+        }
+        const res = kkMaxError(gradients)
+        error = res.error
+        index = res.index
+        iter++
+    }
+    fixPositions(nodes, bbox)
+
+}
+
+export function drawAll1(divElId, data) {
     // canvas size
     const width = 500
     const height = 500
@@ -217,7 +331,7 @@ export function drawAll(divElId, data) {
     const iH = height - margin.top - margin.bottom
     const svg = canvas
         .append("svg")
-        .attr("class", "bfs-svg")
+        .attr("class", "kamada-kawai-svg")
         .attr("width", width)
         .attr("height", height)
     svg.append("rect")
@@ -244,8 +358,7 @@ export function drawAll(divElId, data) {
             ymin: -iH / 2,
             ymax: iH / 2,
         }    
-
-    //const { nodes, edges, bbox } = initNetwork(lesmiserables, iW, iH) // draw(lesmiserables, iW, iH)
+    // compute layout
     const sortedNodes = []
     nodes.forEach((n) => sortedNodes.push(n))
     sortedNodes.sort((n1, n2) => {
@@ -410,4 +523,160 @@ export function drawAll(divElId, data) {
         })
     }
 } // drawAll()
+
+export function drawAll2(divElId, data) {
+    // canvas size
+    const width = 500
+    const height = 500
+    // data: set a reasonable name
+    const lesmiserables = data
+    lesmiserables.edges = lesmiserables.links
+    delete lesmiserables.links
+    // check data structure
+    preprocessNetwork(lesmiserables)
+
+    // tooltip
+    const divTooltip = genDivTooltip()
+    
+    //============================================================================
+    // drawing
+    const canvas = d3.select(divElId)
+    
+    // D3
+    const minNodeRadius = 4
+    const maxNodeRadius = 16
+    const nodeStrokeWidth = 1.5
+    const selNodeStrokeWidth = 3
+    const nodeStrokeColor = "#ffffff"
+    const selNodeStrokeColor = "#867979"
+    const offsetX = 7
+    const offsetY = 7
+    const margin = { top: 15, bottom: 15, left: 15, right: 15 }
+    const iW = width - margin.left - margin.right
+    const iH = height - margin.top - margin.bottom
+    const svg = canvas
+        .append("svg")
+        .attr("class", "kamada-kawai-svg")
+        .attr("width", width)
+        .attr("height", height)
+    svg.append("rect")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("fill", "white")
+        .attr("stroke", "tan")
+    const netwG = svg
+        .append("g")
+        .attr("class", "kamada-kawai-force-directed-layout-group")
+        .attr("transform", `translate(${width / 2}, ${height / 2})`)
+
+    // simulation Kamada-Kawai
+    const sc = 0.8 // scaling factor for the layout
+    const L = sc * width / 5 // ideal Euclidean distance: canvas_size / max_ij d_ij
+    const K = 30 // spring stiffness constant
+    const radius = 200
+    const { nodes, edges } = lesmiserables
+    const nrNodes = nodes.length
+    const distanceMatrix = initKamadaKawai(nodes, edges, L, K, iW, iH)
+    const bbox = {
+            xmin: -iW / 2,
+            xmax: iW / 2,
+            ymin: -iH / 2,
+            ymax: iH / 2,
+        }    
+
+    // compute layout
+    kamadaKawai(nodes, edges, distanceMatrix, bbox)
+
+    //const { nodes, edges, bbox } = initNetwork(lesmiserables, iW, iH) // draw(lesmiserables, iW, iH)
+    const sortedNodes = []
+    nodes.forEach((n) => sortedNodes.push(n))
+    sortedNodes.sort((n1, n2) => {
+        return n1.c - n2.c
+    })
+
+    // d3
+    const lineGenerator = d3.line().curve(d3.curveBasis)
+    // collects groups of nodes
+    const gSet = new Set()
+    nodes.forEach((n) => {
+        gSet.add(n.group)
+    })
+    const colors = [
+        "#a6cee3",
+        "#1f78b4",
+        "#b2df8a",
+        "#33a02c",
+        "#fb9a99",
+        "#e31a1c",
+        "#fdbf6f",
+        "#ff7f00",
+        "#cab2d6",
+        "#6a3d9a",
+        "#D2691E",
+        "#b15928",
+    ]
+    const colorScale = d3
+        .scaleOrdinal()
+        .domain(Array.from(gSet).sort())
+        .range(colors)
+
+    const beta = 0.2
+    const linkG = netwG
+        .append("g")
+        .attr("stroke", "#999")
+        .attr("stroke-opacity", 0.6)
+        .selectAll("path")
+        .data(edges)
+        .join("path")
+        .attr("d", (d) => {
+            const source = nodes[d.source] // nMap.get(d.source)
+            const target = nodes[d.target] //nMap.get(d.target)
+            const d0 = [source.x, source.y]
+            const d2 = [target.x, target.y]
+            const x = (d0[0] + d2[0]) / 2
+            const y = (d0[1] + d2[1]) / 2
+            const vx = (d2[0] - d0[0]) / 2
+            const vy = (d2[1] - d0[1]) / 2
+            const d1 = [x - beta * vy, y + beta * vx]
+            return lineGenerator([d0, d1, d2])
+        })
+        .attr("stroke", (d) => {
+            const source = nodes[d.source]
+            const target = nodes[d.target]
+            const g = source.c > target.c ? source.group : target.group
+            return colorScale(g)
+        })
+        .attr("stroke-width", (d) => Math.sqrt(d.value))
+        .attr("fill", "none")
+        .attr("opacity", 0.6)
+    const nodeG = netwG
+        .append("g")
+        .attr("stroke", nodeStrokeColor)
+        .attr("stroke-width", nodeStrokeWidth)
+        .selectAll("circle")
+        .data(sortedNodes)
+        .join("circle")
+        .attr("r", (d) => d.r)
+        .attr("cx", (d) => d.x)
+        .attr("cy", (d) => d.y)
+        .attr("fill", (d) => colorScale(d.group))
+        
+    nodeG.append("title").text((d) => d.name)
+
+    
+    function mouseOver(divTooltip, event, d) {
+        divTooltip.style("display", "inline-block")
+        const x = event.pageX + offsetX
+        const y = event.pageY - offsetY
+        divTooltip.html(d.name).style("left", `${x}px`).style("top", `${y}px`)
+    }
+    function mouseMove(divTooltip, event, d) {
+        const x = event.pageX + offsetX
+        const y = event.pageY - offsetY
+        divTooltip.html(d.name).style("left", `${x}px`).style("top", `${y}px`)
+    }
+    function mouseLeave(divTooltip, event, d) {
+        divTooltip.style("display", "none")
+    }
+} // drawAll()2
 

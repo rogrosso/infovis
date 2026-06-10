@@ -359,21 +359,24 @@ const rnd_ = mwcRandomFactory(18)
 function umapCrossEntropy(q, edges, a, b) {
     const vertices = new Array(q.length).fill(null).map((_, i) => ({index: i, x: q[i].x, y: q[i].y, r: radius, t: q[i].t}))
     const N = vertices.length
-    const epsilon = 1e-4 // small value to avoid division by zero in the repulsive force computation
     const M = 5 // number of negative samples to draw for each attractive edge update
     const mxIterations = 600
+    const lr = 1
     const disp = new Array(N).fill(null).map(() => ({x: 0, y: 0}))
-    let lr = 1
+    const beta = 0.1 // 0.1
+    const alpha = 0.01 //0.1
+    const kappa = 5
+    const eps = 1e-1
+    // iterate until temperature is zero
     for (let iteration = 0; iteration < mxIterations; iteration++) {
         // process all positive edges, positive means the attractive forces
         umapForces(vertices, edges, a, b, disp)
-        collision(1.1, 0.01, 0.01, vertices, edges, disp)
+        //collision(beta, alpha, kappa, eps, vertices, edges, disp)
         // update positions based on the computed forces
-        const llr = lr * (1 - iteration / mxIterations) // linear learning rate decay
+        const coolingFactor = lr * (1 - iteration / mxIterations) // linear cooling schedule
         for (let v of vertices) {
-            // do not forget to multiply the forces by the learning rate to slow down the optimization process and allow it to converge to a steady state
-            v.x += llr * disp[v.index].x
-            v.y += llr * disp[v.index].y
+            v.x += coolingFactor * disp[v.index].x
+            v.y += coolingFactor * disp[v.index].y
             disp[v.index].x = 0
             disp[v.index].y = 0
         }
@@ -414,17 +417,25 @@ function umapForces(vertices, edges, a, b, disp) {
     }
 }
 
-function collision(beta, alpha, eps, vertices, edges, disp) {
+function collision(beta, alpha, kappa, eps, vertices, edges, disp) {
     const N = vertices.length
-    for (let e of edges) {
-        const n1 = vertices[e.source]
-        const n2 = vertices[e.target]
-        const d = distance2D(n1, n2)
-        const fr = alpha / (d.d2 + eps)
-        disp[n1.index].x -= fr * d.x
-        disp[n1.index].y -= fr * d.y
-        disp[n2.index].x += fr * d.x
-        disp[n2.index].y += fr * d.y
+    
+    //for (let e of edges) {
+    for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+            const n1 = vertices[i]
+            const n2 = vertices[j]
+            const d = distance2D(n1, n2) // vector pointing from node n1 to node n2
+            const s = beta * (n1.r + n2.r)
+            const r = d.d - s 
+            if (r < 0) {
+                const fr = (d.d > alpha) ? kappa * Math.abs(r / d.d) : kappa * Math.abs(r / alpha)
+                disp[n1.index].x -= fr * d.x
+                disp[n1.index].y -= fr * d.y
+                disp[n2.index].x += fr * d.x
+                disp[n2.index].y += fr * d.y
+            }
+        }
     }
 }
 

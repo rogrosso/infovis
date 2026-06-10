@@ -279,8 +279,12 @@ function positionVerletIntegration(vertices, edges, lr, disp, a, b) {
     }
     // conservative forces
     // conservativeForces(vertices, edges, lr, disp, a, b)
+    const beta = 4.5// 0.1
+    const alpha = 0.01 //0.1
+    const kappa = 0.5
+    const eps = 1e-1
     umapForces(vertices, edges, a, b, disp)
-    collision(1.1, 0.07, 0.01, vertices, edges, disp)
+    collision(beta, alpha, kappa, eps, vertices, edges, disp)
     // cool down the optimization
     for (let d in disp) {
         disp[d].x *= lr
