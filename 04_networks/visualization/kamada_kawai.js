@@ -262,12 +262,7 @@ function kkOptimize(index, nodes, distanceMatrix) {
     }
 }
 // This function computes the position of the nodes
-function kamadaKawai(nodes, edges, distanceMatrix, bbox) {
-
-    // init displacements
-    const disp = nodes.map((n) => {
-        return { x: 0, y: 0, index: n.index }
-    })
+function kamadaKawai(nodes, distanceMatrix, bbox) {
     // initialize gradients
     const gradients = nodes.map((n) => {
         return { x: 0, y: 0, index: n.index }
@@ -585,7 +580,7 @@ export function drawAll2(divElId, data) {
         }    
 
     // compute layout
-    kamadaKawai(nodes, edges, distanceMatrix, bbox)
+    kamadaKawai(nodes, distanceMatrix, bbox)
 
     //const { nodes, edges, bbox } = initNetwork(lesmiserables, iW, iH) // draw(lesmiserables, iW, iH)
     const sortedNodes = []
