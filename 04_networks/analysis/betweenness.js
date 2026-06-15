@@ -6,7 +6,41 @@ import { keyCantor } from "utilities"
 import { fixPositions, positionVerlet } from "layoutPhysics"
 import { betweenness } from "centrality"
 
+const mynetwork = {
+    "nodes": [
+        {"name": "1", "group": 1},
+        {"name": "2", "group": 1},
+        {"name": "3", "group": 1},
+        {"name": "4", "group": 1},
+        {"name": "5", "group": 1},
+        {"name": "6", "group": 1},
+        {"name": "7", "group": 1},
+        {"name": "8", "group": 1},
+        {"name": "9", "group": 1}],
+    "links": [
+        {"source": 0, "target": 1, "value": 1},
+        {"source": 0, "target": 8, "value": 1},
+        {"source": 1, "target": 2, "value": 1},
+        {"source": 1, "target": 6, "value": 1},
+        {"source": 2, "target": 3, "value": 1},
+        {"source": 2, "target": 5, "value": 1},
+        {"source": 3, "target": 4, "value": 1},
+        {"source": 3, "target": 6, "value": 1},
+        {"source": 4, "target": 5, "value": 1},
+        {"source": 5, "target": 7, "value": 1},
+        {"source": 7, "target": 8, "value": 1},
+    ]
+}
+
 export function drawAll(menuDivId, svgDivId, lesmiserables) {
+    const width = 500
+    const height = 500
+    const margin = { top: 5, bottom: 5, left: 5, right: 5 }
+    const iW = width - margin.left - margin.right
+    const iH = height - margin.top - margin.bottom
+    const minNodeRadius = 4
+    const maxNodeRadius = 16
+    
     // global variables
     const dampConst = 10
     let damping = dampConst
@@ -25,8 +59,6 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         )
     }
     // drawing
-    const width = 500
-    const height = 500
     const menuCanvas = d3.select(menuDivId)
     const svgCanvas = d3.select(svgDivId)
     // gui
@@ -52,19 +84,15 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
     guiConfig.keys = mKeys
     guiConfig.handler = centralityHandler
     dropdown(guiConfig)
-
+    
     // D3
-    const minNodeRadius = 4
-    const maxNodeRadius = 16
     const nodeStrokeWidth = 1.5
     const selNodeStrokeWidth = 3
     const nodeStrokeColor = "#ffffff"
     const selNodeStrokeColor = "#867979"
     const offsetX = 7
     const offsetY = 7
-    const margin = { top: 5, bottom: 5, left: 5, right: 5 }
-    const iW = width - margin.left - margin.right
-    const iH = height - margin.top - margin.bottom
+    
     const svg = svgCanvas
         .append("svg")
         .attr("class", "svg")
@@ -80,7 +108,9 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         .attr("class", "force-directed-layout-group")
         .attr("transform", `translate(${width / 2}, ${height / 2})`)
 
+    
     const { nodes, edges, minDeg, maxDeg, minC, maxC, bbox } = initNetwork(lesmiserables, iW, iH)
+    
     const sortedNodes = []
     nodes.forEach((n) => sortedNodes.push(n))
     sortedNodes.sort((n1, n2) => {
@@ -93,7 +123,7 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
             for (let n of nodes) n.r = lerp([minC, maxC], [minNodeRadius, maxNodeRadius], n.c)
         }
     }
-
+    
     // d3
     // line generator
     const lineGenerator = d3.line().curve(d3.curveBasis)
@@ -363,67 +393,3 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         divTooltip.style("display", "none")
     }
 }
-const cText = `
-/**
- * Computes the and accumulate the betweenness centrality for a source node
- * @param {Array} A, adjacency list 
- * @param {Number} source, index of source node
- * @param {Array} c_, array which accumulate centrality values
- */
-function bc_( A, source, c_ ){
-    const n = A.length
-    const d_ = new Array(n).fill(-1)
-    const sigma_ = new Array(n).fill(0)
-    const delta_ = new Array(n).fill(0)
-    d_[source] = 0
-    sigma_[source] = 1
-    const q_ = [source] // queue
-    const s_ = [] // stack
-    const p_ = new Array(n).fill(null).map( e => []) // list of parent
-    while (q_.length > 0) {
-        const v = q_.shift()
-        const d = d_[v]
-        s_.push(v)
-        for (let w of A[v]) {
-            if (d_[w] < 0) {
-                d_[w] = d + 1
-                q_.push(w)
-            }
-            if (d_[w] === d + 1) {
-                sigma_[w] += sigma_[v]
-                p_[w].push(v)
-            }
-        }
-    }
-    while (s_.length > 0) {
-        let w = s_.pop()
-        for (let v of p_[w]) {
-            delta_[v] += (sigma_[v] / sigma_[w]) * (1 + delta_[w])
-        }
-        if (w !== source) {
-            c_[w] += delta_[w]
-        }
-    }
-}
-/**
- * Computes betweenness centrality for each node in the graph
- * @param {Array} nodes, array of nodes
- * @param {Array} neighbors, adjacency list
- * @returns {Array} c_, array of betweenness centrality values for each node in nodes
- * @see https://en.wikipedia.org/wiki/Betweenness_centrality
- * @see Brandes, Ulrik (2001). "A faster algorithm for betweenness centrality". Journal of Mathematical Sociology. 25 (2): 163–177. doi:10.1080/0022250X.2001.9990249. S2CID 14548872.
- */
-function betweenness(nodes, neighbors) {
-    const c_ = new Array(nodes.length).fill(0)
-    for (let n of nodes) {
-        bc_(neighbors, n.index, c_)
-    }
-    return c_
-}
-`
-const hlPre = d3.select("#hl-code").append("pre")
-const hlCod = hlPre
-    .append("code")
-    .attr("class", "language-javascript")
-    .attr("style", "border: 1px solid #C1BAA9")
-    .text(cText)
