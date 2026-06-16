@@ -6,33 +6,7 @@ import { keyCantor } from "utilities"
 import { fixPositions, positionVerlet } from "layoutPhysics"
 import { betweenness } from "centrality"
 
-const mynetwork = {
-    "nodes": [
-        {"name": "1", "group": 1},
-        {"name": "2", "group": 1},
-        {"name": "3", "group": 1},
-        {"name": "4", "group": 1},
-        {"name": "5", "group": 1},
-        {"name": "6", "group": 1},
-        {"name": "7", "group": 1},
-        {"name": "8", "group": 1},
-        {"name": "9", "group": 1}],
-    "links": [
-        {"source": 0, "target": 1, "value": 1},
-        {"source": 0, "target": 8, "value": 1},
-        {"source": 1, "target": 2, "value": 1},
-        {"source": 1, "target": 6, "value": 1},
-        {"source": 2, "target": 3, "value": 1},
-        {"source": 2, "target": 5, "value": 1},
-        {"source": 3, "target": 4, "value": 1},
-        {"source": 3, "target": 6, "value": 1},
-        {"source": 4, "target": 5, "value": 1},
-        {"source": 5, "target": 7, "value": 1},
-        {"source": 7, "target": 8, "value": 1},
-    ]
-}
-
-export function drawAll(menuDivId, svgDivId, lesmiserables) {
+export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
     const width = 500
     const height = 500
     const margin = { top: 5, bottom: 5, left: 5, right: 5 }
@@ -40,6 +14,7 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
     const iH = height - margin.top - margin.bottom
     const minNodeRadius = 4
     const maxNodeRadius = 16
+    const beta = 0.2
     
     // global variables
     const dampConst = 10
@@ -58,24 +33,43 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
                 (range[1] - range[0])
         )
     }
+    function selector(target) {
+        if (typeof target !== "string") return target
+        return target.startsWith("#") || target.startsWith(".") ? target : `#${target}`
+    }
     // drawing
-    const menuCanvas = d3.select(menuDivId)
-    const svgCanvas = d3.select(svgDivId)
-    // gui
+    const dataCanvas = d3.select(selector(dataDivId))
+    const menuCanvas = d3.select(selector(menuDivId))
+    const svgCanvas = d3.select(selector(svgDivId))
+
+    // Data gui
+    const nKeys = ["lesmiserables", "test05"]
+    let nSel = "lesmiserables"
+    const nId = "data-menu"
+    const nDiv = dataCanvas.append("div").attr("class", "cell").attr("id", nId)
+    const guiConfig = {
+        divObj: nDiv,
+        text: "network: ",
+        selection: nSel,
+        keys: nKeys,
+        handler: networkHandler,
+    }
+    dropdown(guiConfig)
+
+    // Lauyout gui
     const pKeys = ["Fruchterman-Reingold", "ForceAtlas2"]
     let pSel = "Fruchterman-Reingold"
     const pId = "layout-menu"
     const pDiv = menuCanvas.append("div").attr("class", "cell").attr("id", pId)
-    const guiConfig = {
-        divObj: pDiv,
-        text: "layout: ",
-        selection: pSel,
-        keys: pKeys,
-        handler: forceHandler,
-    }
+    guiConfig.divObj = pDiv
+    guiConfig.text = "layout: "
+    guiConfig.selection = pSel
+    guiConfig.keys = pKeys
+    guiConfig.handler = forceHandler
+    
     dropdown(guiConfig)
     const mKeys = ["betweenness","degree"]
-    let mSel = "node centrality"
+    let mSel = "betweenness"
     const mId = "centrality-menu"
     const mDiv = menuCanvas.append("div").attr("class", "cell").attr("id", mId)
     guiConfig.divObj = mDiv
@@ -107,9 +101,15 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         .append("g")
         .attr("class", "force-directed-layout-group")
         .attr("transform", `translate(${width / 2}, ${height / 2})`)
-
-    
-    const { nodes, edges, minDeg, maxDeg, minC, maxC, bbox } = initNetwork(lesmiserables, iW, iH)
+    let {
+        nodes,
+        edges,
+        minDeg,
+        maxDeg,
+        minC,
+        maxC,
+        bbox,
+    } = initNetwork(lesmiserables, iW, iH)
     
     const sortedNodes = []
     nodes.forEach((n) => sortedNodes.push(n))
@@ -123,123 +123,148 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
             for (let n of nodes) n.r = lerp([minC, maxC], [minNodeRadius, maxNodeRadius], n.c)
         }
     }
+    function networkHandler(text, value) {
+        let data = null
+        if (value === "lesmiserables") {
+            data = lesmiserables
+        } else if (value === "test05") {
+            data = test05
+        }
+        const network = initNetwork(data, iW, iH)
+        nodes = network.nodes
+        edges = network.edges
+        minDeg = network.minDeg
+        maxDeg = network.maxDeg
+        minC = network.minC
+        maxC = network.maxC
+        bbox = network.bbox
+        drawNetwork(netwG, nodes, edges, beta, lineGenerator)
+    }
     
-    // d3
+    let linkG = null
+    let nodeG = null
     // line generator
     const lineGenerator = d3.line().curve(d3.curveBasis)
-    // collects groups of nodes
-    const gSet = new Set()
-    nodes.forEach((n) => {
-        gSet.add(n.group)
-    })
-    const colors = [
-        "#a6cee3",
-        "#1f78b4",
-        "#b2df8a",
-        "#33a02c",
-        "#fb9a99",
-        "#e31a1c",
-        "#fdbf6f",
-        "#ff7f00",
-        "#cab2d6",
-        "#6a3d9a",
-        "#D2691E",
-        "#b15928",
-    ]
-    const colorScale = d3
-        .scaleOrdinal()
-        .domain(Array.from(gSet).sort())
-        .range(colors)
+    drawNetwork(netwG, nodes, edges, beta, lineGenerator)
 
-    const beta = 0.2
-    const linkG = netwG
-        .append("g")
-        .attr("stroke", "#999")
-        .attr("stroke-opacity", 0.6)
-        .selectAll("path")
-        .data(edges)
-        .join("path")
-        .attr("d", (d) => {
-            const source = nodes[d.source] // nMap.get(d.source)
-            const target = nodes[d.target] //nMap.get(d.target)
-            const d0 = [source.x, source.y]
-            const d2 = [target.x, target.y]
-            const x = (d0[0] + d2[0]) / 2
-            const y = (d0[1] + d2[1]) / 2
-            const vx = (d2[0] - d0[0]) / 2
-            const vy = (d2[1] - d0[1]) / 2
-            const d1 = [x - beta * vy, y + beta * vx]
-            return lineGenerator([d0, d1, d2])
+    function drawNetwork(netwG, nodes, edges, beta, lineGenerator) {
+        netwG.selectAll("*").remove()
+        // d3
+        // line generator
+        //const lineGenerator = d3.line().curve(d3.curveBasis)
+        // collects groups of nodes
+        const gSet = new Set()
+        nodes.forEach((n) => {
+            gSet.add(n.group)
         })
-        .attr("stroke", (d) => {
-            const source = nodes[d.source]
-            const target = nodes[d.target]
-            const g = source.c > target.c ? source.group : target.group
-            return colorScale(g)
-        })
-        .attr("stroke-width", (d) => Math.sqrt(d.value))
-        .attr("fill", "none")
-        .attr("opacity", 0.6)
-    const nodeG = netwG
-        .append("g")
-        .attr("stroke", nodeStrokeColor)
-        .attr("stroke-width", nodeStrokeWidth)
-        .selectAll("circle")
-        //.data(sortedNodes)
-        .data(nodes)
-        .join("circle")
-        .attr("r", (d) => d.r)
-        .attr("cx", (d) => d.x)
-        .attr("cy", (d) => d.y)
-        .attr("fill", (d) => colorScale(d.group))
-        .on("mouseover", function (event, d) {
-            mouseOver(divTooltip)
-        })
-        .on("mousemove", function (event, d) {
-            const pos = d3.pointer(event)
-            mouseMove(divTooltip, d, {
-                x: event.pageX,
-                y: event.pageY
+        const colors = [
+            "#a6cee3",
+            "#1f78b4",
+            "#b2df8a",
+            "#33a02c",
+            "#fb9a99",
+            "#e31a1c",
+            "#fdbf6f",
+            "#ff7f00",
+            "#cab2d6",
+            "#6a3d9a",
+            "#D2691E",
+            "#b15928",
+        ]
+        const colorScale = d3
+            .scaleOrdinal()
+            .domain(Array.from(gSet).sort())
+            .range(colors)
+
+        //const beta = 0.2
+        linkG = netwG
+            .append("g")
+            .attr("stroke", "#999")
+            .attr("stroke-opacity", 0.6)
+            .selectAll("path")
+            .data(edges)
+            .join("path")
+            .attr("d", (d) => {
+                const source = nodes[d.source] // nMap.get(d.source)
+                const target = nodes[d.target] //nMap.get(d.target)
+                const d0 = [source.x, source.y]
+                const d2 = [target.x, target.y]
+                const x = (d0[0] + d2[0]) / 2
+                const y = (d0[1] + d2[1]) / 2
+                const vx = (d2[0] - d0[0]) / 2
+                const vy = (d2[1] - d0[1]) / 2
+                const d1 = [x - beta * vy, y + beta * vx]
+                return lineGenerator([d0, d1, d2])
             })
-        })
-        .on("mouseout", function (event, d) {
-            mouseOut(divTooltip)
-        })
-        .call(
-            d3
-                .drag()
-                .on("start", dragstarted)
-                .on("drag", dragged)
-                .on("end", dragend)
-        )
-
-    function dragstarted(event, d) {
-        damping = dampConst
-        const x = event.sourceEvent.pageX + offsetX
-        const y = event.sourceEvent.pageY - offsetY
-        divTooltip
-            .style("display", "inline-block")
-            .html(d.name)
-            .style("left", `${x}px`)
-            .style("top", `${y}px`)
-        d3.select(this)
-            .attr("stroke", selNodeStrokeColor)
-            .attr("stroke-width", selNodeStrokeWidth)
-    }
-    function dragged(event, d) {
-        const x = event.sourceEvent.pageX + offsetX
-        const y = event.sourceEvent.pageY - offsetY
-        divTooltip.html(d.name).style("left", `${x}px`).style("top", `${y}px`)
-        event.subject.x = event.x
-        event.subject.y = event.y
-    }
-    function dragend(event, d) {
-        divTooltip.style("display", "none")
-        d3.select(this)
+            .attr("stroke", (d) => {
+                const source = nodes[d.source]
+                const target = nodes[d.target]
+                const g = source.c > target.c ? source.group : target.group
+                return colorScale(g)
+            })
+            .attr("stroke-width", (d) => Math.sqrt(d.value))
+            .attr("fill", "none")
+            .attr("opacity", 0.6)
+        nodeG = netwG
+            .append("g")
             .attr("stroke", nodeStrokeColor)
             .attr("stroke-width", nodeStrokeWidth)
-    }
+            .selectAll("circle")
+            //.data(sortedNodes)
+            .data(nodes)
+            .join("circle")
+            .attr("r", (d) => d.r)
+            .attr("cx", (d) => d.x)
+            .attr("cy", (d) => d.y)
+            .attr("fill", (d) => colorScale(d.group))
+            .on("mouseover", function (event, d) {
+                mouseOver(divTooltip)
+            })
+            .on("mousemove", function (event, d) {
+                const pos = d3.pointer(event)
+                mouseMove(divTooltip, d, {
+                    x: event.pageX,
+                    y: event.pageY
+                })
+            })
+            .on("mouseout", function (event, d) {
+                mouseOut(divTooltip)
+            })
+            .call(
+                d3
+                    .drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragend)
+            )
 
+        function dragstarted(event, d) {
+            damping = dampConst
+            const x = event.sourceEvent.pageX + offsetX
+            const y = event.sourceEvent.pageY - offsetY
+            divTooltip
+                .style("display", "inline-block")
+                .html(d.name)
+                .style("left", `${x}px`)
+                .style("top", `${y}px`)
+            d3.select(this)
+                .attr("stroke", selNodeStrokeColor)
+                .attr("stroke-width", selNodeStrokeWidth)
+        }
+        function dragged(event, d) {
+            const x = event.sourceEvent.pageX + offsetX
+            const y = event.sourceEvent.pageY - offsetY
+            divTooltip.html(d.name).style("left", `${x}px`).style("top", `${y}px`)
+            event.subject.x = event.x
+            event.subject.y = event.y
+        }
+        function dragend(event, d) {
+            divTooltip.style("display", "none")
+            d3.select(this)
+                .attr("stroke", nodeStrokeColor)
+                .attr("stroke-width", nodeStrokeWidth)
+        }
+    }
     // interaction
     const C = 0.45 // 0.52 // 0.4537 // 3 // 0.399
     const Kf = C * Math.sqrt((width * height) / nodes.length) // Fruchterman-Reindold
@@ -271,9 +296,9 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         if (damping > 3) damping *= 0.99
         positionVerlet(model, K, Kc, Kg, damping, cR, nodes, edges, bbox, disp)
         fixPositions(nodes, bbox)
-        redraw(nodeG, linkG)
+        redraw(nodeG, linkG, beta, lineGenerator)
     }
-    function redraw(nodeG, linkG) {
+    function redraw(nodeG, linkG, beta, lineGenerator) {
         nodeG
             .attr("cx", (d) => d.x)
             .attr("cy", (d) => d.y)
@@ -382,7 +407,7 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         tooltip.style("display", "inline-block")
     }
     function mouseMove(tooltip, d, pos) {
-        const text = d.name + '<br>' + 'degree: ' + d.degree + '<br>' + 'betweenness centrality: ' + d.c.toFixed(4)
+        const text = 'name: ' + d.name + '<br>' + 'degree: ' + d.degree + '<br>' + 'betweenness centrality: ' + d.c.toFixed(4)
         const { x, y } = pos
         tooltip
             .html(text)

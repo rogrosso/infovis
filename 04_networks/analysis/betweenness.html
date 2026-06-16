@@ -94,13 +94,19 @@
             </p>
             <hr style="margin-top: 10px; margin-bottom: 10px;">
             <div class="canvas">
+                <div id="betweenness-centrality-dataset" class="grid-container-1-column"></div>
                 <div id="betweenness-centrality-layout" class="grid-container-2-column"></div>
                 <div id="betweenness-centrality-svg" class="betweenness-centrality" style="text-align: center;"></div>
                 <script type="module">
                     import { drawAll } from "betweenness"
-                    const response = await fetch('../../data/lesmiserables.json')
-                    const lesmiserables = await response.json()
-                    drawAll('#betweenness-centrality-layout', '#betweenness-centrality-svg', lesmiserables)
+                    const response1 = await fetch('../../data/lesmiserables.json')
+                    const lesmiserables = await response1.json()
+                    const response2 = await fetch('../../data/test05.json')
+                    const test05 = await response2.json(    )
+                    drawAll('betweenness-centrality-dataset',
+                            'betweenness-centrality-layout', 
+                            'betweenness-centrality-svg', 
+                            lesmiserables, test05)
                 </script>
             </div>
             <hr>
