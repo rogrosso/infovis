@@ -6,20 +6,28 @@ import { keyCantor } from "utilities"
 import { fixPositions, positionVerlet } from "layoutPhysics"
 import { betweenness } from "centrality"
 
-export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
+export function drawAll(menuDivId, svgDivId, lesmiserables, test05) {
     const width = 500
     const height = 500
     const margin = { top: 5, bottom: 5, left: 5, right: 5 }
     const iW = width - margin.left - margin.right
     const iH = height - margin.top - margin.bottom
-    const minNodeRadius = 4
-    const maxNodeRadius = 16
+    const minNodeRadiusLesMiserables = 4
+    const maxNodeRadiusLesMiserables = 16
+    const minNodeRadiusTest05 = 10
+    const maxNodeRadiusTest05 = 16
+    let minNodeRadius = minNodeRadiusLesMiserables
+    let maxNodeRadius = maxNodeRadiusLesMiserables
     const beta = 0.2
-    
-    // global variables
+
+    // Physics parameters
+    const C = 0.45 // 0.52 // 0.4537 // 3 // 0.399
+    let K = null // this has to be set, when the number of nodes is known
+    const Kg = 30 // 0.5
+    const Kc = 1500 // 1500
+    const cR = 2 // collision radius control
     const dampConst = 10
     let damping = dampConst
-    let model = "Fruchterman-Reingold"
 
     // draw
     const divTooltip = genDivTooltip()
@@ -38,15 +46,15 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
         return target.startsWith("#") || target.startsWith(".") ? target : `#${target}`
     }
     // drawing
-    const dataCanvas = d3.select(selector(dataDivId))
     const menuCanvas = d3.select(selector(menuDivId))
     const svgCanvas = d3.select(selector(svgDivId))
 
-    // Data gui
+    // Menu gui
+    // select network
     const nKeys = ["lesmiserables", "test05"]
     let nSel = "lesmiserables"
     const nId = "data-menu"
-    const nDiv = dataCanvas.append("div").attr("class", "cell").attr("id", nId)
+    const nDiv = menuCanvas.append("div").attr("class", "cell").attr("id", nId)
     const guiConfig = {
         divObj: nDiv,
         text: "network: ",
@@ -55,19 +63,7 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
         handler: networkHandler,
     }
     dropdown(guiConfig)
-
-    // Lauyout gui
-    const pKeys = ["Fruchterman-Reingold", "ForceAtlas2"]
-    let pSel = "Fruchterman-Reingold"
-    const pId = "layout-menu"
-    const pDiv = menuCanvas.append("div").attr("class", "cell").attr("id", pId)
-    guiConfig.divObj = pDiv
-    guiConfig.text = "layout: "
-    guiConfig.selection = pSel
-    guiConfig.keys = pKeys
-    guiConfig.handler = forceHandler
-    
-    dropdown(guiConfig)
+    // select centrality
     const mKeys = ["betweenness","degree"]
     let mSel = "betweenness"
     const mId = "centrality-menu"
@@ -101,15 +97,14 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
         .append("g")
         .attr("class", "force-directed-layout-group")
         .attr("transform", `translate(${width / 2}, ${height / 2})`)
-    let {
-        nodes,
-        edges,
+    let { nodes, edges,
         minDeg,
         maxDeg,
         minC,
         maxC,
         bbox,
-    } = initNetwork(lesmiserables, iW, iH)
+    } = initNetwork(lesmiserables, iW, iH, minNodeRadius, maxNodeRadius)
+    K = C * Math.sqrt((iW * iH) / nodes.length)
     
     const sortedNodes = []
     nodes.forEach((n) => sortedNodes.push(n))
@@ -120,17 +115,21 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
         if (value === "degree") {
             for (let n of nodes) n.r = lerp([minDeg, maxDeg], [minNodeRadius, maxNodeRadius], n.degree)
         } else if (value === "betweenness") { 
-            for (let n of nodes) n.r = lerp([minC, maxC], [minNodeRadius, maxNodeRadius], n.c)
+            for (let n of nodes) n.r = lerp([n.minC, n.maxC], [minNodeRadius, maxNodeRadius], n.c)
         }
     }
     function networkHandler(text, value) {
         let data = null
         if (value === "lesmiserables") {
             data = lesmiserables
+            minNodeRadius = minNodeRadiusLesMiserables
+            maxNodeRadius = maxNodeRadiusLesMiserables
         } else if (value === "test05") {
             data = test05
+            minNodeRadius = minNodeRadiusTest05
+            maxNodeRadius = maxNodeRadiusTest05
         }
-        const network = initNetwork(data, iW, iH)
+        const network = initNetwork(data, iW, iH, minNodeRadius, maxNodeRadius)
         nodes = network.nodes
         edges = network.edges
         minDeg = network.minDeg
@@ -138,6 +137,7 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
         minC = network.minC
         maxC = network.maxC
         bbox = network.bbox
+        K = C * Math.sqrt((iW * iH) / nodes.length)
         drawNetwork(netwG, nodes, edges, beta, lineGenerator)
     }
     
@@ -265,27 +265,7 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
                 .attr("stroke-width", nodeStrokeWidth)
         }
     }
-    // interaction
-    const C = 0.45 // 0.52 // 0.4537 // 3 // 0.399
-    const Kf = C * Math.sqrt((width * height) / nodes.length) // Fruchterman-Reindold
-    const Ka = 3.8 // ForceAtlas2
-    const KgF = 30 // 0.5
-    const KgA = 10 // 0.01
-    let Kg = KgF
-    const Kc = 1500 // 1500
-    const cR = 2 // collision radius control
-    let K = Kf
-    function forceHandler(text, value) {
-        if (value === "Fruchterman-Reingold") {
-            model = "Fruchterman-Reingold"
-            K = Kf
-            Kg = KgF
-        } else if (value === "ForceAtlas2") {
-            model = "ForceAtlas2"
-            K = Ka
-            Kg = KgA
-        }
-    }
+    
     // animaiton
     const disp = nodes.map((n) => {
         return { d: 0, x: 0, y: 0, index: n.index }
@@ -294,7 +274,7 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
     function animate() {
         requestAnimationFrame(animate)
         if (damping > 3) damping *= 0.99
-        positionVerlet(model, K, Kc, Kg, damping, cR, nodes, edges, bbox, disp)
+        positionVerlet('Fruchterman-Reingold', K, Kc, Kg, damping, cR, nodes, edges, bbox, disp)
         fixPositions(nodes, bbox)
         redraw(nodeG, linkG, beta, lineGenerator)
     }
@@ -317,7 +297,7 @@ export function drawAll(dataDivId, menuDivId, svgDivId, lesmiserables, test05) {
         })
     }
 
-    function initNetwork(data, width, height) {
+    function initNetwork(data, width, height, minNodeRadius = 4, maxNodeRadius = 16) {
         const { nodes, links } = data
         nodes.forEach((n, index) => {
             n.index = index

@@ -1,0 +1,35 @@
+{
+    "nodes": [
+        {"name": "A", "group": 1},
+        {"name": "B", "group": 1},
+        {"name": "C", "group": 1},
+        {"name": "D", "group": 1},
+        {"name": "E", "group": 1},
+        {"name": "F", "group": 1},
+        {"name": "G", "group": 1},
+        {"name": "H", "group": 1},
+        {"name": "I", "group": 1},
+        {"name": "J", "group": 1},
+        {"name": "K", "group": 1},
+        {"name": "L", "group": 1},
+        {"name": "M", "group": 1},
+        {"name": "N", "group": 1},
+        {"name": "O", "group": 1}
+    ],
+    "edges": [
+        {"source": 3, "target": 1, "value": 1},
+        {"source": 3, "target": 2, "value": 1},
+        {"source": 4, "target": 0, "value": 1},
+        {"source": 4, "target": 3, "value": 1},
+        {"source": 12, "target": 7, "value": 1},
+        {"source": 12, "target": 8, "value": 1},
+        {"source": 12, "target": 9, "value": 1},
+        {"source": 12, "target": 10, "value": 1},
+        {"source": 12, "target": 11, "value": 1},
+        {"source": 13, "target": 6, "value": 1},
+        {"source": 13, "target": 12, "value": 1},
+        {"source": 14, "target": 4, "value": 1},
+        {"source": 14, "target": 5, "value": 1},
+        {"source": 14, "target": 13, "value": 1}
+    ]
+}
