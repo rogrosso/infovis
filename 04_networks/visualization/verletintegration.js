@@ -264,6 +264,7 @@ export function drawAll(menuDivId, svgDivId, lesmiserables) {
         .attr("cy", (d) => d.y)
         .attr("fill", (d) => colorScale(d.group))
         .on("mouseover", function (event, d) {
+            console.log("mouseover", d)
             mouseOver(divTooltip, event, d)
         })
         .on("mousemove", function (event, d) {
