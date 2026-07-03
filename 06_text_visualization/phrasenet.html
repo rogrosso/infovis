@@ -13,17 +13,17 @@
         <script type="importmap">
             {
                 "imports": {
-                    "d3": "../../contrib/d3.esm.js",
-                    "compromise": "../../contrib/compromise/compromise.esm.js",
-                    "compromise-one": "../../contrib/compromise/compromise-one.esm.js",
-                    "compromise-two": "../../contrib/compromise/compromise-two.esm.js",
-                    "compromise-three": "../../contrib/compromise/compromise-three.esm.js",
-                    "utilities": "../../00_common/utilities.js",
-                    "colors": "../../00_common/colors.js",
-                    "gui": "../../00_common/gui.js",
-                    "draw": "../../00_common/draw.js",
-                    "random": "../../00_common/random.js",
-                    "binaryHeap": "../../00_common/binaryHeap.js",
+                    "d3": "../contrib/d3.esm.js",
+                    "compromise": "../contrib/compromise/compromise.esm.js",
+                    "compromise-one": "../contrib/compromise/compromise-one.esm.js",
+                    "compromise-two": "../contrib/compromise/compromise-two.esm.js",
+                    "compromise-three": "../contrib/compromise/compromise-three.esm.js",
+                    "utilities": "../00_common/utilities.js",
+                    "colors": "../00_common/colors.js",
+                    "gui": "../00_common/gui.js",
+                    "draw": "../00_common/draw.js",
+                    "random": "../00_common/random.js",
+                    "binaryHeap": "../00_common/binaryHeap.js",
                     "layoutPhysics": "../04_networks/visualization/layoutPhysics.js",
                     "phrasenet": "./phrasenet.js"
                 }
@@ -65,7 +65,7 @@
                 <div id="phrasenet-svg" class="phrasenet"></div>
                 <script type="module">
                     import { drawAll } from "phrasenet"
-                    const response = await fetch('../../data/waltwhitman_songofmyself.txt')
+                    const response = await fetch('../data/waltwhitman_songofmyself.txt')
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
@@ -76,8 +76,8 @@
             <footer>
                 <hr>
                 <div class="impressum">
-                    <a class="impressum" href="../../impressum.html">Impressum</a> 
-                    <a class="dateschuntzerklaerung" href="../../datenschutzerklaerung.html">Datenschutzerklärung</a>
+                    <a class="impressum" href="../impressum.html">Impressum</a> 
+                    <a class="dateschuntzerklaerung" href="../datenschutzerklaerung.html">Datenschutzerklärung</a>
                 </div>
             </footer>
         </div>
