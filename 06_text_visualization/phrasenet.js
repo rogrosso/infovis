@@ -346,8 +346,8 @@ function connectorHandler(text, value) {
     damping = dampConst
     if (value === "and") {
         K = C * Math.sqrt((width * height) / andGraph.nodes.length)
-        Kc = 30
-        Kg = 1000
+        Kc = 1500
+        Kg = 1
         drawGraph(netwG, andGraph, "and")
     } else if (value === "of") {
         K = C * Math.sqrt((width * height) / ofGraph.nodes.length)
